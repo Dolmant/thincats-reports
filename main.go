@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -353,7 +354,16 @@ func main() {
 	router.Use(cors.New(config))
 	cookieJar, _ := cookiejar.New(nil)
 
-	Data := Data{CookieJar: cookieJar, Config: config}
+	byteValue, _ := ioutil.ReadFile("./config.json")
+
+	// we initialize our Users array
+	var conf Config
+
+	// we unmarshal our byteArray which contains our
+	// jsonFile's content into 'users' which we defined above
+	json.Unmarshal(byteValue, &conf)
+
+	Data := Data{CookieJar: cookieJar, Config: conf}
 
 	Data.Refresh()
 
