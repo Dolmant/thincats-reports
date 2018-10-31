@@ -8,8 +8,11 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gocarina/gocsv"
 
@@ -343,6 +346,9 @@ func (data *Data) Refresh() {
 }
 
 func main() {
+	ex, _ := os.Executable()
+	exPath := filepath.Dir(ex)
+
 	router := gin.New()
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.Use(gin.Logger())
@@ -354,7 +360,7 @@ func main() {
 	router.Use(cors.New(config))
 	cookieJar, _ := cookiejar.New(nil)
 
-	byteValue, _ := ioutil.ReadFile("./config.json")
+	byteValue, _ := ioutil.ReadFile(exPath + string(os.PathSeparator) + "config.json")
 
 	// we initialize our Users array
 	var conf Config
@@ -365,7 +371,12 @@ func main() {
 
 	Data := Data{CookieJar: cookieJar, Config: conf}
 
-	Data.Refresh()
+	go func() {
+		go Data.Refresh()
+		for _ = range time.Tick(15 * time.Minute) {
+			go Data.Refresh()
+		}
+	}()
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -428,5 +439,5 @@ func main() {
 		})
 	})
 
-	router.Run("127.0.0.1:8079")
+	router.Run("0.0.0.0:8079")
 }

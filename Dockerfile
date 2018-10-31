@@ -1,7 +1,10 @@
 # Start from a Debian image with the latest version of Go installed
 # and a workspace (GOPATH) configured at /go.
 # build with
-# docker build -t thincats-reports
+# docker build -t thincats-reports .
+# docker tag thincats-reports:latest asia.gcr.io/firm-champion-204312/thincats-reports:latest
+# docker push asia.gcr.io/firm-champion-204312/thincats-reports:latest
+# gcloud compute instances create-with-container reports  --container-image asia.gcr.io/firm-champion-204312/thincats-reports:latest
 FROM golang AS build-env
 
 COPY . ./src/github.com/dolmant/thincats-reports
@@ -13,6 +16,7 @@ ADD ca-certificates.crt /etc/ssl/certs/
 WORKDIR /
 RUN mkdir /root/thincats-reports
 COPY --from=build-env /go/src/github.com/dolmant/thincats-reports/thincats-reports /root/thincats-reports
+COPY --from=build-env /go/src/github.com/dolmant/thincats-reports/config.json /root/thincats-reports
 ENTRYPOINT /root/thincats-reports/thincats-reports
 
 EXPOSE 8079
