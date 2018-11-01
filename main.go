@@ -418,6 +418,37 @@ func main() {
 		c.Header("Content-Disposition", "attachment; filename=capital-outstanding-report.csv")
 		c.Data(http.StatusOK, "text/csv", []byte(csvContent))
 	})
+	router.GET("/report/investor-balance", func(c *gin.Context) {
+		type InvestorBalance struct {
+			InvestorName             string `csv:"investor_name"`
+			InvestorId               string `csv:"investor_id"`
+			AccountBalance           string `csv:"accountBalance"`
+			BalanceInHold            string `csv:"balanceInHold"`
+			EffectiveBalance         string `csv:"effectiveBalance"`
+			PrincipalInLiveLoanAccts string `csv:"principalInLiveLoanAccts"`
+		}
+
+		InvestorBalanceTotal := []*InvestorBalance{}
+
+		for _, investor := range Data.Investors {
+			InvestorBalanceTotal = append(InvestorBalanceTotal, &InvestorBalance{
+				InvestorId:               investor.AccountName,
+				InvestorName:             investor.GivenName + " " + investor.Surname,
+				AccountBalance:           strconv.FormatFloat(float64(investor.AccountBalance), 'f', 6, 32),
+				BalanceInHold:            strconv.FormatFloat(float64(investor.BalanceInHold), 'f', 6, 32),
+				PrincipalInLiveLoanAccts: strconv.FormatFloat(float64(investor.PrincipalInLiveLoanAccts), 'f', 6, 32),
+				EffectiveBalance:         strconv.FormatFloat(float64(investor.EffectiveBalance), 'f', 6, 32),
+			})
+		}
+
+		csvContent, err := gocsv.MarshalString(&InvestorBalanceTotal)
+		if err != nil {
+			panic(err)
+		}
+		c.Header("Content-Description", "File Transfer")
+		c.Header("Content-Disposition", "attachment; filename=capital-outstanding-report.csv")
+		c.Data(http.StatusOK, "text/csv", []byte(csvContent))
+	})
 
 	router.GET("/metrics/totals", func(c *gin.Context) {
 		type Totals struct {
