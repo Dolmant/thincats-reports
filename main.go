@@ -342,7 +342,7 @@ func (data *Data) Refresh() {
 	data.LoginInvestor()
 	data.LoginLender()
 	go data.RefreshInvestors()
-	go data.RefreshLoans()
+	// go data.RefreshLoans()
 }
 
 func main() {
@@ -446,7 +446,7 @@ func main() {
 			panic(err)
 		}
 		c.Header("Content-Description", "File Transfer")
-		c.Header("Content-Disposition", "attachment; filename=capital-outstanding-report.csv")
+		c.Header("Content-Disposition", "attachment; filename=investor-balance-report.csv")
 		c.Data(http.StatusOK, "text/csv", []byte(csvContent))
 	})
 
