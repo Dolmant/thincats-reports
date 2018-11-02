@@ -235,7 +235,7 @@ func (data *Data) RefreshInvestorBalances() {
 		}(investor.AccountName, &data.Investors[i])
 		func(accountName string, toUpdate *Investor) {
 			client := &http.Client{}
-			req, _ := http.NewRequest("GET", "https://thinapi.blockbond.com.au//loans/loan/exchange/"+accountName+"/txn/1/100", nil)
+			req, _ := http.NewRequest("GET", "https://thinapi.blockbond.com.au//loans/loan/exchange/"+accountName+"/txn/1/5000", nil)
 			req.Header.Set("Authorization", "Bearer "+data.InvestorToken)
 			resp, err := client.Do(req)
 			if err != nil {
@@ -249,7 +249,7 @@ func (data *Data) RefreshInvestorBalances() {
 		}(investor.AccountName, &data.Investors[i])
 		func(accountName string, toUpdate *Investor) {
 			client := &http.Client{}
-			req, _ := http.NewRequest("GET", "https://thinapi.blockbond.com.au//loans/loan/blk/invportfolio/"+accountName+"/1/100", nil)
+			req, _ := http.NewRequest("GET", "https://thinapi.blockbond.com.au//loans/loan/blk/invportfolio/"+accountName+"/1/5000", nil)
 			req.Header.Set("Authorization", "Bearer "+data.InvestorToken)
 			resp, err := client.Do(req)
 			if err != nil {
@@ -284,6 +284,10 @@ func (data *Data) RefreshLoanBalances() {
 
 			err = json.NewDecoder(resp.Body).Decode(toUpdate)
 			if err != nil {
+				buf := new(bytes.Buffer)
+				buf.ReadFrom(resp.Body)
+				newStr := buf.String()
+				log.Println(newStr)
 				log.Fatalln(err)
 			}
 		}(id, &data.Loans[i])
@@ -342,7 +346,7 @@ func (data *Data) Refresh() {
 	data.LoginInvestor()
 	data.LoginLender()
 	go data.RefreshInvestors()
-	// go data.RefreshLoans()
+	go data.RefreshLoans()
 }
 
 func main() {
@@ -447,6 +451,49 @@ func main() {
 		}
 		c.Header("Content-Description", "File Transfer")
 		c.Header("Content-Disposition", "attachment; filename=investor-balance-report.csv")
+		c.Data(http.StatusOK, "text/csv", []byte(csvContent))
+	})
+	router.GET("/report/investor-transactions", func(c *gin.Context) {
+		type InvestorTransactions struct {
+			InvestorName              string `csv:"investor_name"`
+			InvestorId                string `csv:"investor_id"`
+			TxnId                     string `csv:"txnId"`
+			TxnValueDate              string `csv:"txnValueDate"`
+			TxnAmt                    string `csv:"txnAmt"`
+			Txnind                    string `csv:"txnind"`
+			TxnType                   string `csv:"txnType"`
+			TxnDesc                   string `csv:"txnDesc"`
+			AcctId                    string `csv:"acctId"`
+			PartitionKey              string `csv:"partitionKey"`
+			BorrowerInvestorIndicator string `csv:"borrowerInvestorIndicator"`
+		}
+
+		InvestorTransactionsTotal := []*InvestorTransactions{}
+
+		for _, investor := range Data.Investors {
+			for _, transaction := range investor.Transactions {
+				InvestorTransactionsTotal = append(InvestorTransactionsTotal, &InvestorTransactions{
+					InvestorId:                investor.AccountName,
+					InvestorName:              investor.GivenName + " " + investor.Surname,
+					TxnId:                     transaction.TxnId,
+					TxnValueDate:              transaction.TxnValueDate,
+					TxnAmt:                    strconv.FormatFloat(float64(transaction.TxnAmt), 'f', 6, 32),
+					Txnind:                    transaction.Txnind,
+					TxnType:                   transaction.TxnType,
+					TxnDesc:                   transaction.TxnDesc,
+					AcctId:                    transaction.AcctId,
+					PartitionKey:              transaction.PartitionKey,
+					BorrowerInvestorIndicator: transaction.BorrowerInvestorIndicator,
+				})
+			}
+		}
+
+		csvContent, err := gocsv.MarshalString(&InvestorTransactionsTotal)
+		if err != nil {
+			panic(err)
+		}
+		c.Header("Content-Description", "File Transfer")
+		c.Header("Content-Disposition", "attachment; filename=investor-transaction-report.csv")
 		c.Data(http.StatusOK, "text/csv", []byte(csvContent))
 	})
 
