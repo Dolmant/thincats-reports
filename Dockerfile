@@ -15,8 +15,7 @@ FROM alpine
 ADD ca-certificates.crt /etc/ssl/certs/
 WORKDIR /
 RUN mkdir /root/thincats-reports
-COPY --from=build-env /go/src/github.com/dolmant/thincats-reports/thincats-reports /root/thincats-reports
-COPY --from=build-env /go/src/github.com/dolmant/thincats-reports/config.json /root/thincats-reports
+COPY --from=build-env /go/src/github.com/dolmant/thincats-reports /root/thincats-reports
 ENTRYPOINT /root/thincats-reports/thincats-reports
 
 EXPOSE 8079

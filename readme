@@ -1,0 +1,12 @@
+needs a config.json like below:
+
+{
+    "Email": "xx",
+    "Password": "xx",
+    "Username": "xx",
+    "Pass": "xx",
+    "Basic": "Basic xx",
+    "Interval": 3000,
+    "SimultaneousRequests": 6,
+    "DetailedMatch": true
+}

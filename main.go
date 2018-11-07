@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/gocarina/gocsv"
 
 	"github.com/gin-contrib/cors"
@@ -25,23 +26,23 @@ import (
 
 // sub part of https://othera-thincats-prod.azurewebsites.net/api/loans/2/exchange/balance-transactions
 type BalanceTransaction struct {
-	AccruedInterestAmount     float32 `json:"accruedInterestAmount"`
-	CapitalizedInterestAmount float32 `json:"capitalizedInterestAmount"`
-	FeeAmount                 float32 `json:"feeAmount"`
-	PrincipleAmount           float32 `json:"principleAmount"`
-	RepaymentDueAmount        float32 `json:"repaymentDueAmount"`
-	Total                     float32 `json:"total"`
+	AccruedInterestAmount     float64 `json:"accruedInterestAmount"`
+	CapitalizedInterestAmount float64 `json:"capitalizedInterestAmount"`
+	FeeAmount                 float64 `json:"feeAmount"`
+	PrincipleAmount           float64 `json:"principleAmount"`
+	RepaymentDueAmount        float64 `json:"repaymentDueAmount"`
+	Total                     float64 `json:"total"`
 	Date                      string  `json:"date"`
 }
 
 // https://othera-thincats-prod.azurewebsites.net/api/loans/2/exchange/balance-transactions
 type BalanceTransactions struct {
-	AccruedInterestAmount     float32              `json:"accruedInterestAmount"`
-	CapitalizedInterestAmount float32              `json:"capitalizedInterestAmount"`
-	FeeAmount                 float32              `json:"feeAmount"`
-	PrincipleAmount           float32              `json:"principleAmount"`
-	RepaymentDueAmount        float32              `json:"repaymentDueAmount"`
-	TotalAmount               float32              `json:"totalAmount"`
+	AccruedInterestAmount     float64              `json:"accruedInterestAmount"`
+	CapitalizedInterestAmount float64              `json:"capitalizedInterestAmount"`
+	FeeAmount                 float64              `json:"feeAmount"`
+	PrincipleAmount           float64              `json:"principleAmount"` //the principal remaining
+	RepaymentDueAmount        float64              `json:"repaymentDueAmount"`
+	TotalAmount               float64              `json:"totalAmount"`
 	Transactions              []BalanceTransaction `json:"transactions"`
 }
 
@@ -49,30 +50,31 @@ type BalanceTransactions struct {
 type Repayment struct {
 	BorrowerInvestorIndicator string  `json:"borrowerInvestorIndicator"`
 	DemandDueStatus           string  `json:"demandDueStatus"`
-	DueAmt                    float32 `json:"dueAmt"`
+	DueAmt                    float64 `json:"dueAmt"`
 	DueType                   string  `json:"dueType"`
 	DueValueDate              string  `json:"dueValueDate"`
-	OrgDueAmt                 float32 `json:"orgDueAmt"`
-	FeePerRepayAmt            float32 `json:"feePerRepayAmt"`
+	OrgDueAmt                 float64 `json:"orgDueAmt"`
+	FeePerRepayAmt            float64 `json:"feePerRepayAmt"`
 	IntCapitalizedFlag        string  `json:"intCapitalizedFlag"`
 }
 
 // https://othera-thincats-prod.azurewebsites.net/api/loans/2/exchange/current-status
 type Loan struct {
-	Amount              float32 `json:"amount"`
+	Amount              float64 `json:"amount"` //Original amount
 	Created             string  `json:"created"`
-	BorrowerRate        float32 `json:"borrowerRate"`
+	BorrowerRate        float64 `json:"borrowerRate"`
 	EndDate             string  `json:"endDate"`
 	LoanTerm            string  `json:"loanTerm"`
-	LoanTermMonth       float32 `json:"loanTermMonth"`
-	LoanTermYear        float32 `json:"loanTermYear"`
+	LoanTermMonth       float64 `json:"loanTermMonth"`
+	LoanTermYear        float64 `json:"loanTermYear"`
 	FirstName           string  `json:"firstName"`
 	LastName            string  `json:"lastName"`
 	Email               string  `json:"email"`
 	StartDate           string  `json:"startDate"`
 	StatusName          string  `json:"statusName"`
 	Name                string  `json:"name"`
-	Id                  int     `json:"id"`
+	Id                  int64   `json:"id"`
+	ExchangeLoanId      string  `json:"exchangeLoanId"`
 	BalanceTransactions BalanceTransactions
 	Repayments          []Repayment
 }
@@ -81,20 +83,20 @@ type Loan struct {
 // https://thinapi.blockbond.com.au//loans/loan/exchange/investor/interest/10240/1/20
 // https://thinapi.blockbond.com.au//loans/loan/exchange/investor/loans/10240/1/20
 type InvestorLoan struct {
-	LoanAmount                 float32 `json:"loanAmount"`
-	OutstandingPrinciple       float32 `json:"outstandingPrinciple"`
+	LoanAmount                 float64 `json:"loanAmount"`
+	OutstandingPrinciple       float64 `json:"outstandingPrinciple"`
 	RepaymentPaid              string  `json:"repaymentPaid"`
 	RepaymentsToBePaid         string  `json:"repaymentsToBePaid"`
 	NextRepaymentDate          string  `json:"nextRepaymentDate"`
 	BorrowerName               string  `json:"borrowerName"`
 	LoanStartdate              string  `json:"loanStartdate"`
 	LoanEnddate                string  `json:"loanEnddate"`
-	NumofTokensHeld            float32 `json:"numofTokensHeld"`
-	CurrentTokenValue          float32 `json:"currentTokenValue"`
-	OrgTokenValue              float32 `json:"orgTokenValue"`
+	NumofTokensHeld            float64 `json:"numofTokensHeld"`
+	CurrentTokenValue          float64 `json:"currentTokenValue"`
+	OrgTokenValue              float64 `json:"orgTokenValue"`
 	TokenAllocationDate        string  `json:"tokenAllocationDate"`
-	InterestEarned             float32 `json:"interestEarned"`
-	LoanInvestorRateOfInterest float32 `json:"loanInvestorRateOfInterest"`
+	InterestEarned             float64 `json:"interestEarned"`
+	LoanInvestorRateOfInterest float64 `json:"loanInvestorRateOfInterest"`
 	LoanAcctId                 string  `json:"loanAcctId"`
 	InvestorLoan               *Loan
 }
@@ -103,7 +105,7 @@ type InvestorLoan struct {
 type Transaction struct {
 	TxnId                     string  `json:"txnId"`
 	TxnValueDate              string  `json:"txnValueDate"`
-	TxnAmt                    float32 `json:"txnAmt"`
+	TxnAmt                    float64 `json:"txnAmt"`
 	Txnind                    string  `json:"txnind"`
 	TxnType                   string  `json:"txnType"`
 	TxnDesc                   string  `json:"txnDesc"`
@@ -120,26 +122,29 @@ type Investor struct {
 	GivenName        string  `json:"givenName"`
 	Surname          string  `json:"surname"`
 	Type             string  `json:"type"`
-	AccountBalance   float32 `json:"accountBalance"`
-	BalanceInHold    float32 `json:"balanceInHold"`
-	EffectiveBalance float32 `json:"effectiveBalance"`
-	InterestEarned   float32 `json:"interestEarned"`
+	AccountBalance   float64 `json:"accountBalance"`
+	BalanceInHold    float64 `json:"balanceInHold"`
+	EffectiveBalance float64 `json:"effectiveBalance"`
+	InterestEarned   float64 `json:"interestEarned"`
 	// This is the ID effectively
 	InvestorAcctName           string         `json:"investorAcctName"`
-	NumOfLoansInvested         float32        `json:"numOfLoansInvested"`
-	NumOfLoansInvestedInClosed float32        `json:"numOfLoansInvestedInClosed"`
-	PrincipalInLiveLoanAccts   float32        `json:"principalInLiveLoanAccts"`
-	PrincipleToRecover         float32        `json:"principleToRecover"`
+	NumOfLoansInvested         float64        `json:"numOfLoansInvested"`
+	NumOfLoansInvestedInClosed float64        `json:"numOfLoansInvestedInClosed"`
+	PrincipalInLiveLoanAccts   float64        `json:"principalInLiveLoanAccts"`
+	PrincipleToRecover         float64        `json:"principleToRecover"`
 	InvestorLoans              []InvestorLoan `json:"investorPortFolioDtoList"` // todo pagination for these transactions
 	Transactions               []Transaction  `json:"transactionLegPageList"`   // todo pagination for these transactions
 }
 
 type Config struct {
-	Email    string
-	Password string
-	Username string
-	Pass     string
-	Basic    string
+	Email                string
+	Password             string
+	Username             string
+	Pass                 string
+	Basic                string
+	Interval             int64
+	SimultaneousRequests int64
+	DetailedMatch        bool
 }
 
 // https://othera-thincats-prod.azurewebsites.net/api/loans/loan-managements
@@ -150,6 +155,7 @@ type Data struct {
 	CookieJar     *cookiejar.Jar
 	Loans         []Loan
 	Investors     []Investor
+	Semaphore     chan int
 }
 
 func (data *Data) LoginInvestor() {
@@ -219,11 +225,13 @@ func (data *Data) RefreshInvestorBalances() {
 		// 	continue
 		// }
 		fmt.Printf("%d of %d\n", i, len(data.Investors))
-		func(accountName string, toUpdate *Investor) {
+		data.Semaphore <- 1
+		go func(accountName string, toUpdate *Investor) {
 			client := &http.Client{}
 			req, _ := http.NewRequest("GET", "https://thinapi.blockbond.com.au/loans/loan/exchange/investor/balance/"+accountName, nil)
 			req.Header.Set("Authorization", "Bearer "+data.InvestorToken)
 			resp, err := client.Do(req)
+			<-data.Semaphore
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -233,11 +241,13 @@ func (data *Data) RefreshInvestorBalances() {
 				log.Fatalln(err)
 			}
 		}(investor.AccountName, &data.Investors[i])
-		func(accountName string, toUpdate *Investor) {
+		data.Semaphore <- 1
+		go func(accountName string, toUpdate *Investor) {
 			client := &http.Client{}
 			req, _ := http.NewRequest("GET", "https://thinapi.blockbond.com.au//loans/loan/exchange/"+accountName+"/txn/1/5000", nil)
 			req.Header.Set("Authorization", "Bearer "+data.InvestorToken)
 			resp, err := client.Do(req)
+			<-data.Semaphore
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -247,11 +257,13 @@ func (data *Data) RefreshInvestorBalances() {
 				log.Fatalln(err)
 			}
 		}(investor.AccountName, &data.Investors[i])
-		func(accountName string, toUpdate *Investor) {
+		data.Semaphore <- 1
+		go func(accountName string, toUpdate *Investor) {
 			client := &http.Client{}
 			req, _ := http.NewRequest("GET", "https://thinapi.blockbond.com.au//loans/loan/blk/invportfolio/"+accountName+"/1/5000", nil)
 			req.Header.Set("Authorization", "Bearer "+data.InvestorToken)
 			resp, err := client.Do(req)
+			<-data.Semaphore
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -272,12 +284,14 @@ func (data *Data) RefreshLoanBalances() {
 		// }
 		fmt.Printf("%d of %d\n", i, len(data.Loans))
 		id := strconv.FormatInt(int64(loan.Id), 10)
-		func(accountName string, toUpdate *Loan) {
+		data.Semaphore <- 1
+		go func(accountName string, toUpdate *Loan) {
 			client := &http.Client{
 				Jar: data.CookieJar,
 			}
 			req, _ := http.NewRequest("GET", "https://othera-thincats-prod.azurewebsites.net/api/loans/"+accountName+"/exchange/current-status", nil)
 			resp, err := client.Do(req)
+			<-data.Semaphore
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -291,12 +305,14 @@ func (data *Data) RefreshLoanBalances() {
 				log.Fatalln(err)
 			}
 		}(id, &data.Loans[i])
-		func(accountName string, toUpdate *BalanceTransactions) {
+		data.Semaphore <- 1
+		go func(accountName string, toUpdate *BalanceTransactions) {
 			client := &http.Client{
 				Jar: data.CookieJar,
 			}
 			req, _ := http.NewRequest("GET", "https://othera-thincats-prod.azurewebsites.net/api/loans/"+accountName+"/exchange/balance-transactions", nil)
 			resp, err := client.Do(req)
+			<-data.Semaphore
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -306,12 +322,14 @@ func (data *Data) RefreshLoanBalances() {
 				log.Fatalln(err)
 			}
 		}(id, &data.Loans[i].BalanceTransactions)
-		func(accountName string, toUpdate *[]Repayment) {
+		data.Semaphore <- 1
+		go func(accountName string, toUpdate *[]Repayment) {
 			client := &http.Client{
 				Jar: data.CookieJar,
 			}
 			req, _ := http.NewRequest("GET", "https://othera-thincats-prod.azurewebsites.net/api/loans/"+accountName+"/exchange/dues", nil)
 			resp, err := client.Do(req)
+			<-data.Semaphore
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -373,11 +391,11 @@ func main() {
 	// jsonFile's content into 'users' which we defined above
 	json.Unmarshal(byteValue, &conf)
 
-	Data := Data{CookieJar: cookieJar, Config: conf}
+	Data := Data{CookieJar: cookieJar, Config: conf, Semaphore: make(chan int, conf.SimultaneousRequests)}
 
 	go func() {
 		go Data.Refresh()
-		for _ = range time.Tick(15 * time.Minute) {
+		for _ = range time.Tick(time.Duration(conf.Interval) * time.Minute) {
 			go Data.Refresh()
 		}
 	}()
@@ -495,6 +513,324 @@ func main() {
 		c.Header("Content-Description", "File Transfer")
 		c.Header("Content-Disposition", "attachment; filename=investor-transaction-report.csv")
 		c.Data(http.StatusOK, "text/csv", []byte(csvContent))
+	})
+
+	router.GET("/data/match", func(c *gin.Context) {
+		// todo if I throw all the data into an id keyed map instead of an array it will be far faster to access
+		// match dates
+
+		logs := ""
+
+		addLog := func(line string) {
+			log.Println(line)
+			logs = logs + "\n" + line
+		}
+
+		addSpew := func(structure interface{}) {
+			spew.Dump(structure)
+			logs = logs + "\n" + spew.Sdump(structure)
+		}
+
+		within := func(a float64, b float64) bool {
+			if (a-b < 1) && (a-b > -1) {
+				return true
+			}
+			return false
+		}
+
+		investorBalanceRec := 0
+		loanBalanceRec := 0
+		lenderHoldingRec := 0
+		lenderHoldingRecNotFound := 0
+
+		loanBalanceProblemLoans := make(map[string]int64)
+		lenderHoldingProblemLoans := make(map[string]int64)
+
+		// Investor balance rec
+		{
+
+			addLog("Investor Balance Rec")
+			type CSVInvestorBalance struct {
+				Id              string  `csv:"ID"`
+				User            string  `csv:"User"`
+				Email           string  `csv:"Email"`
+				Balance         float64 `csv:"Balance"`
+				Funds           float64 `csv:"Funds (Committed)"`
+				InvestmentsLive float64 `csv:"Investments (live)"`
+				InvestmentsAllT float64 `csv:"Investments (all time)"`
+			}
+
+			investorBalanceFile, err := os.OpenFile("user bals cob 31oct18.csv", os.O_RDWR|os.O_CREATE, os.ModePerm)
+			if err != nil {
+				panic(err)
+			}
+			defer investorBalanceFile.Close()
+
+			investorBalance := []*CSVInvestorBalance{}
+
+			if err := gocsv.UnmarshalFile(investorBalanceFile, &investorBalance); err != nil { // Load clients from file
+				panic(err)
+			}
+
+			for _, investorbalance := range investorBalance {
+				var investor *Investor
+				for _, investor2 := range Data.Investors {
+					if investorbalance.Id == investor2.AccountName {
+						investor = &investor2
+						break
+					}
+				}
+				if investor == nil {
+					investorBalanceRec++
+					addLog("No match found for: " + investorbalance.Id)
+					continue
+				}
+				if within(investorbalance.Balance+investorbalance.Funds, investor.AccountBalance) {
+					addLog("OK")
+					continue
+				}
+				investorBalanceRec++
+				if conf.DetailedMatch {
+					addLog("Out By")
+					addLog(strconv.FormatFloat(investorbalance.Balance+investorbalance.Funds-investor.AccountBalance, 'f', 6, 64))
+					addLog("expected: ")
+					addSpew(investorbalance)
+					addLog("got: ")
+					investor.Transactions = []Transaction{}
+					investor.InvestorLoans = []InvestorLoan{}
+					addSpew(investor)
+				} else {
+					addLog("expected: " + strconv.FormatFloat(investor.AccountBalance, 'f', 6, 64))
+					addLog("got: " + strconv.FormatFloat(investorbalance.Balance, 'f', 6, 64))
+					log.Printf("%s%s%s%s%s%s", investor.AccountName, investor.GivenName+" "+investor.Surname, strconv.FormatFloat(investor.AccountBalance, 'f', 6, 64), strconv.FormatFloat(float64(investor.BalanceInHold), 'f', 6, 64), strconv.FormatFloat(float64(investor.PrincipalInLiveLoanAccts), 'f', 6, 64), strconv.FormatFloat(float64(investor.EffectiveBalance), 'f', 6, 64))
+				}
+			}
+		}
+
+		// Loan balance rec
+		{
+			addLog("Loan Balance Rec")
+			type CSVLoanBalance struct {
+				Id          string  `csv:"Id"`
+				Name        string  `csv:"Name"`
+				Org         string  `csv:"Org"`
+				Int         string  `csv:"Int"`
+				Months      string  `csv:"Months"`
+				Settled     string  `csv:"Settled"`
+				Closed      string  `csv:"Closed"`
+				ElapsedMths string  `csv:"Elapsed mths"`
+				BalanceMths string  `csv:"Balance mths"`
+				Outstanding float64 `csv:"OS"`
+			}
+
+			loanBalanceFile, err := os.OpenFile("loan balances 31oct.csv", os.O_RDWR|os.O_CREATE, os.ModePerm)
+			if err != nil {
+				panic(err)
+			}
+			defer loanBalanceFile.Close()
+
+			LoanBalance := []*CSVLoanBalance{}
+
+			if err := gocsv.UnmarshalFile(loanBalanceFile, &LoanBalance); err != nil { // Load clients from file
+				panic(err)
+			}
+
+			for _, loanBalance := range LoanBalance {
+				var loan *Loan
+				for _, loan2 := range Data.Loans {
+					if loanBalance.Id == loan2.ExchangeLoanId {
+						loan = &loan2
+						break
+					}
+					if loanBalance.Id == "4956" && loan2.ExchangeLoanId == "L182980532" {
+						loan = &loan2
+						break
+					}
+				}
+				if loan == nil {
+					addLog("Could not find a matching loan:")
+					addLog(loanBalance.Id)
+					addLog(loanBalance.Name)
+					loanBalanceProblemLoans[loanBalance.Id]++
+					loanBalanceRec++
+					continue
+				}
+				if within(loanBalance.Outstanding, loan.BalanceTransactions.PrincipleAmount-loan.BalanceTransactions.RepaymentDueAmount) {
+					addLog("OK")
+					continue
+				}
+				loanBalanceRec++
+				loanBalanceProblemLoans[loanBalance.Id]++
+				if conf.DetailedMatch {
+					addLog("Out By")
+					addLog(strconv.FormatFloat(loanBalance.Outstanding-loan.BalanceTransactions.PrincipleAmount+loan.BalanceTransactions.RepaymentDueAmount, 'f', 6, 64))
+					addLog("expected: ")
+					addSpew(loanBalance)
+					addLog("got: ")
+					loan.BalanceTransactions.Transactions = []BalanceTransaction{}
+					addSpew(loan.BalanceTransactions)
+				} else {
+					addLog("expected: " + strconv.FormatFloat(loan.BalanceTransactions.PrincipleAmount-loan.BalanceTransactions.RepaymentDueAmount, 'f', 6, 64))
+					addLog("got: " + strconv.FormatFloat(loanBalance.Outstanding, 'f', 6, 64))
+					log.Printf("%d%s%s", loan.Id, loan.Name, strconv.FormatFloat(loan.Amount, 'f', 6, 64))
+				}
+			}
+		}
+
+		// // transaction rec
+		// {
+		// 	addLog("Transaction Rec")
+		// 	type CSVTransaction struct {
+		// 		UserId          int64  `csv:"User ID"`
+		// 		LoanId          int64  `csv:"Loan ID"`
+		// 		User            string  `csv:"User"`
+		// 		Date            float64 `csv:"Date"`
+		// 		TransactionType float64 `csv:"Transaction Type"`
+		// 		Dr              float64 `csv:"Dr"`
+		// 		Cr              float64 `csv:"Cr"`
+		// 		RunningBalance  float64 `csv:"Running Balance"`
+		// 	}
+
+		// 	transactionFile, err := os.OpenFile("loan balances 31oct.csv", os.O_RDWR|os.O_CREATE, os.ModePerm)
+		// 	if err != nil {
+		// 		panic(err)
+		// 	}
+		// 	defer transactionFile.Close()
+
+		// 	Transactions := []*CSVTransaction{}
+
+		// 	if err := gocsv.UnmarshalFile(transactionFile, &Transactions); err != nil { // Load clients from file
+		// 		panic(err)
+		// 	}
+
+		// 	for _, investor := range Data.Investors {
+		// 		for _, investorTransaction := range investor.Transactions {
+		// 			for index, transaction := range Transactions {
+		// 				if transaction.LoanId == investorTransaction.PartitionKey && transaction.UserId == investor.AccountName {
+		// 					//todo match formula?
+		// 					match := transaction.Cr
+		// 					if match {
+		// 						if conf.DetailedMatch {
+		// 							addLog("expected: ")
+		//							// todo dont print too much!
+		// 							addSpew(Transactions[index])
+		// 							addLog("got: ")
+		// 							addSpew(loan.BalanceTransactions)
+		// 						} else {
+		// 							addLog("expected: " + strconv.FormatFloat(float64(loan.BalanceTransactions.PrincipleAmount), 'f', 6, 64))
+		// 							addLog("got: " + strconv.FormatFloat(Transactions[index].Outstanding, 'f', 6, 64))
+		// 							log.Printf("%s%s%s", loan.Id, loan.Name, strconv.FormatFloat(float64(loan.Amount), 'f', 6, 64))
+		// 						}
+		// 						break
+		// 					}
+		// 				}
+		// 				if index == (len(Transactions) - 1) {
+		// 					addLog("Couldnt find:")
+		// 					addSpew(investorTransaction)
+		// 				}
+		// 			}
+		// 		}
+		// 	}
+		// }
+
+		// lender holding rec
+		{
+			addLog("Investor Holdings Rec")
+			type CSVInvestorHoldings struct {
+				UserId             string  `csv:"User ID"`
+				BusinessName       string  `csv:"Business Name"`
+				LoanId             string  `csv:"App ID"`
+				Rate               float64 `csv:"Rate"`
+				Amount             float64 `csv:"Amount"`
+				CapitalOutstanding float64 `csv:"Capital Outstanding"`
+			}
+
+			InvestorHoldingsFile, err := os.OpenFile("lender_holding-31oct18.csv", os.O_RDWR|os.O_CREATE, os.ModePerm)
+			if err != nil {
+				panic(err)
+			}
+			defer InvestorHoldingsFile.Close()
+
+			InvestorHoldings := []*CSVInvestorHoldings{}
+
+			if err := gocsv.UnmarshalFile(InvestorHoldingsFile, &InvestorHoldings); err != nil { // Load clients from file
+				panic(err)
+			}
+
+			for _, investorHolding := range InvestorHoldings {
+				var loan *InvestorLoan
+				for _, investor := range Data.Investors {
+					for _, loan2 := range investor.InvestorLoans {
+						if investorHolding.UserId == investor.AccountName && investorHolding.LoanId == loan2.LoanAcctId {
+							loan = &loan2
+							break
+						}
+						if investorHolding.LoanId == "4956" && loan2.LoanAcctId == "L182980532" && investorHolding.UserId == investor.AccountName {
+							loan = &loan2
+							break
+						}
+					}
+					if loan != nil {
+						break
+					}
+				}
+				if loan == nil {
+					addLog("Could not find a match, there are no holdings for this user:")
+					addLog(investorHolding.UserId)
+					addLog(investorHolding.BusinessName)
+					addLog(investorHolding.LoanId)
+					lenderHoldingRecNotFound++
+					lenderHoldingProblemLoans[investorHolding.LoanId]++
+					continue
+				}
+				if within(investorHolding.CapitalOutstanding, (loan.CurrentTokenValue*loan.NumofTokensHeld)) && within(investorHolding.Amount, (loan.OrgTokenValue*loan.NumofTokensHeld)) {
+					addLog("OK")
+					continue
+				}
+				lenderHoldingRec++
+				lenderHoldingProblemLoans[investorHolding.LoanId]++
+				if conf.DetailedMatch {
+					addLog("Out By")
+					addLog(strconv.FormatFloat(investorHolding.CapitalOutstanding-(loan.CurrentTokenValue*loan.NumofTokensHeld), 'f', 6, 64))
+					addLog(strconv.FormatFloat(investorHolding.Amount-(loan.OrgTokenValue*loan.NumofTokensHeld), 'f', 6, 64))
+					addLog("expected: ")
+					addSpew(investorHolding)
+					addLog("got: ")
+					addSpew(loan)
+				} else {
+					addLog("expected (outstanding, org): " + strconv.FormatFloat(investorHolding.CapitalOutstanding, 'f', 6, 64) + " and " + strconv.FormatFloat(investorHolding.Amount, 'f', 6, 64))
+					addLog("got (outstanding, org): " + strconv.FormatFloat((loan.CurrentTokenValue*loan.NumofTokensHeld), 'f', 6, 64) + " and " + strconv.FormatFloat((loan.OrgTokenValue*loan.NumofTokensHeld), 'f', 6, 64))
+				}
+			}
+
+		}
+
+		addLog("investorBalanceRec: " + strconv.FormatInt(int64(investorBalanceRec), 10))
+		addLog("loanBalanceRec: " + strconv.FormatInt(int64(loanBalanceRec), 10))
+		addLog("lenderHoldingRec: " + strconv.FormatInt(int64(lenderHoldingRec), 10))
+		addLog("lenderHoldingRecNotFound: " + strconv.FormatInt(int64(lenderHoldingRecNotFound), 10))
+
+		addLog("loanBalanceProblemLoans: ")
+		addSpew(loanBalanceProblemLoans)
+		addLog("lenderHoldingProblemLoans: ")
+		addSpew(lenderHoldingProblemLoans)
+
+		addLog("Done")
+
+		path := exPath + string(os.PathSeparator) + "rec.txt"
+
+		ioutil.WriteFile(path, []byte(logs), 0666)
+
+		c.Header("Content-Description", "File Transfer")
+		c.Header("Content-Disposition", "attachment; filename=31-Oct-rec-report.txt")
+		c.Data(http.StatusOK, "text/csv", []byte(logs))
+	})
+
+	router.GET("/refresh", func(c *gin.Context) {
+		go Data.Refresh()
+		c.JSON(200, gin.H{
+			"message": "success",
+		})
 	})
 
 	router.GET("/metrics/totals", func(c *gin.Context) {
