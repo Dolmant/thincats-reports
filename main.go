@@ -562,17 +562,6 @@ func main() {
 		// match dates
 		// split into CSVs
 
-		type CSVTransaction struct {
-			UserId          string  `csv:"User ID"`
-			LoanId          string  `csv:"Loan ID"`
-			User            string  `csv:"User"`
-			Date            string  `csv:"Date"`
-			TransactionType string  `csv:"Transaction Type"`
-			Dr              float64 `csv:"Dr"`
-			Cr              float64 `csv:"Cr"`
-			RunningBalance  float64 `csv:"Running Balance"`
-		}
-
 		logs := ""
 
 		loanBalanceRec := 0
@@ -668,17 +657,6 @@ func main() {
 		// todo if I throw all the data into an id keyed map instead of an array it will be far faster to access
 		// match dates
 		// split into CSVs
-
-		type CSVTransaction struct {
-			UserId          string  `csv:"User ID"`
-			LoanId          string  `csv:"Loan ID"`
-			User            string  `csv:"User"`
-			Date            string  `csv:"Date"`
-			TransactionType string  `csv:"Transaction Type"`
-			Dr              float64 `csv:"Dr"`
-			Cr              float64 `csv:"Cr"`
-			RunningBalance  float64 `csv:"Running Balance"`
-		}
 
 		logs := ""
 
@@ -873,17 +851,6 @@ func main() {
 		// todo if I throw all the data into an id keyed map instead of an array it will be far faster to access
 		// match dates
 		// split into CSVs
-
-		type CSVTransaction struct {
-			UserId          string  `csv:"User ID"`
-			LoanId          string  `csv:"Loan ID"`
-			User            string  `csv:"User"`
-			Date            string  `csv:"Date"`
-			TransactionType string  `csv:"Transaction Type"`
-			Dr              float64 `csv:"Dr"`
-			Cr              float64 `csv:"Cr"`
-			RunningBalance  float64 `csv:"Running Balance"`
-		}
 
 		logs := ""
 
