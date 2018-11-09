@@ -550,8 +550,8 @@ func main() {
 		}
 		return false
 	}
-	within := func(a float64, b float64) bool {
-		if (a-b < 1) && (a-b > -1) {
+	within := func(a float64, b float64, amount float64) bool {
+		if (a-b < amount) && (a-b > -amount) {
 			return true
 		}
 		return false
@@ -616,7 +616,7 @@ func main() {
 					loanBalanceRec++
 					continue
 				}
-				if within(loanBalance.Outstanding, loan.BalanceTransactions.PrincipleAmount-loan.BalanceTransactions.RepaymentDueAmount) {
+				if within(loanBalance.Outstanding, loan.BalanceTransactions.PrincipleAmount-loan.BalanceTransactions.RepaymentDueAmount+(loan.BalanceTransactions.PrincipleAmount*loan.BorrowerRate/12), 5) {
 					addLog(&logs, "OK")
 					continue
 				}
@@ -624,14 +624,14 @@ func main() {
 				loanBalanceProblemLoans[loanBalance.Id]++
 				if conf.DetailedMatch {
 					addLog(&logs, "Out By")
-					addLog(&logs, strconv.FormatFloat(loanBalance.Outstanding-loan.BalanceTransactions.PrincipleAmount+loan.BalanceTransactions.RepaymentDueAmount, 'f', 6, 64))
+					addLog(&logs, strconv.FormatFloat(loanBalance.Outstanding-loan.BalanceTransactions.PrincipleAmount+loan.BalanceTransactions.RepaymentDueAmount-(loan.BalanceTransactions.PrincipleAmount*loan.BorrowerRate/12), 'f', 6, 64))
 					addLog(&logs, "expected: ")
 					addSpew(&logs, loanBalance)
 					addLog(&logs, "got: ")
 					loan.BalanceTransactions.Transactions = []BalanceTransaction{}
 					addSpew(&logs, loan.BalanceTransactions)
 				} else {
-					addLog(&logs, "expected: "+strconv.FormatFloat(loan.BalanceTransactions.PrincipleAmount-loan.BalanceTransactions.RepaymentDueAmount, 'f', 6, 64))
+					addLog(&logs, "expected: "+strconv.FormatFloat(loan.BalanceTransactions.PrincipleAmount-loan.BalanceTransactions.RepaymentDueAmount+(loan.BalanceTransactions.PrincipleAmount*loan.BorrowerRate/12), 'f', 6, 64))
 					addLog(&logs, "got: "+strconv.FormatFloat(loanBalance.Outstanding, 'f', 6, 64))
 					log.Printf("%d%s%s", loan.Id, loan.Name, strconv.FormatFloat(loan.Amount, 'f', 6, 64))
 				}
@@ -645,15 +645,15 @@ func main() {
 
 		addLog(&logs, "Done")
 
-		path := exPath + string(os.PathSeparator) + "rec.txt"
+		path := exPath + string(os.PathSeparator) + "loan-balance-rec.txt"
 
 		ioutil.WriteFile(path, []byte(logs), 0666)
 
 		c.Header("Content-Description", "File Transfer")
-		c.Header("Content-Disposition", "attachment; filename=31-Oct-rec-report.txt")
+		c.Header("Content-Disposition", "attachment; filename=31-Oct-loan-balance-rec-report.txt")
 		c.Data(http.StatusOK, "text/csv", []byte(logs))
 	})
-	router.GET("/reportd/lender-holdings-reconciliation", func(c *gin.Context) {
+	router.GET("/report/lender-holdings-reconciliation", func(c *gin.Context) {
 		// todo if I throw all the data into an id keyed map instead of an array it will be far faster to access
 		// match dates
 		// split into CSVs
@@ -715,7 +715,7 @@ func main() {
 					lenderHoldingProblemLoans[investorHolding.LoanId]++
 					continue
 				}
-				if within(investorHolding.CapitalOutstanding, (loan.CurrentTokenValue*loan.NumofTokensHeld)) && within(investorHolding.Amount, (loan.OrgTokenValue*loan.NumofTokensHeld)) {
+				if within(investorHolding.CapitalOutstanding, (loan.CurrentTokenValue*loan.NumofTokensHeld), 1) && within(investorHolding.Amount, (loan.OrgTokenValue*loan.NumofTokensHeld), 1) {
 					addLog(&logs, "OK")
 					continue
 				}
@@ -745,15 +745,15 @@ func main() {
 
 		addLog(&logs, "Done")
 
-		path := exPath + string(os.PathSeparator) + "rec.txt"
+		path := exPath + string(os.PathSeparator) + "lender-holdings-rec.txt"
 
 		ioutil.WriteFile(path, []byte(logs), 0666)
 
 		c.Header("Content-Description", "File Transfer")
-		c.Header("Content-Disposition", "attachment; filename=31-Oct-rec-report.txt")
+		c.Header("Content-Disposition", "attachment; filename=31-Oct-lender-holdings-rec-report.txt")
 		c.Data(http.StatusOK, "text/csv", []byte(logs))
 	})
-	router.GET("/reports/transactions-reconciliations", func(c *gin.Context) {
+	router.GET("/report/transactions-reconciliations", func(c *gin.Context) {
 		// todo if I throw all the data into an id keyed map instead of an array it will be far faster to access
 		// match dates
 		// split into CSVs
@@ -802,7 +802,7 @@ func main() {
 						if transaction.LoanId == investorTransaction.PartitionKey && !doneTxns[investorTransaction.TxnId] {
 							//todo match formula?
 
-							amountMatch := within(investorTransaction.TxnAmt, -transaction.Dr) || within(investorTransaction.TxnAmt, transaction.Cr)
+							amountMatch := within(investorTransaction.TxnAmt, -transaction.Dr, 1) || within(investorTransaction.TxnAmt, transaction.Cr, 1)
 							dateMatch := withinWeek(&logs, investorTransaction.TxnValueDate, transaction.Date)
 
 							match := amountMatch && dateMatch
@@ -839,12 +839,12 @@ func main() {
 
 		addLog(&logs, "Done")
 
-		path := exPath + string(os.PathSeparator) + "rec.txt"
+		path := exPath + string(os.PathSeparator) + "transactions-rec.txt"
 
 		ioutil.WriteFile(path, []byte(logs), 0666)
 
 		c.Header("Content-Description", "File Transfer")
-		c.Header("Content-Disposition", "attachment; filename=31-Oct-rec-report.txt")
+		c.Header("Content-Disposition", "attachment; filename=31-Oct-transactions-rec-report.txt")
 		c.Data(http.StatusOK, "text/csv", []byte(logs))
 	})
 	router.GET("/report/investor-balance-reconciliation", func(c *gin.Context) {
@@ -895,7 +895,7 @@ func main() {
 					addLog(&logs, "No match found for: "+investorbalance.Id)
 					continue
 				}
-				if within(investorbalance.Balance+investorbalance.Funds, investor.AccountBalance) {
+				if within(investorbalance.Balance+investorbalance.Funds, investor.AccountBalance, 1) {
 					addLog(&logs, "OK")
 					continue
 				}
@@ -921,12 +921,12 @@ func main() {
 
 		addLog(&logs, "Done")
 
-		path := exPath + string(os.PathSeparator) + "rec.txt"
+		path := exPath + string(os.PathSeparator) + "investor-balance-rec.txt"
 
 		ioutil.WriteFile(path, []byte(logs), 0666)
 
 		c.Header("Content-Description", "File Transfer")
-		c.Header("Content-Disposition", "attachment; filename=31-Oct-investor-balance-report.txt")
+		c.Header("Content-Disposition", "attachment; filename=31-Oct-investor-balance-rec-report.txt")
 		c.Data(http.StatusOK, "text/csv", []byte(logs))
 	})
 
