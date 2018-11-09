@@ -58,25 +58,52 @@ type Repayment struct {
 	IntCapitalizedFlag        string  `json:"intCapitalizedFlag"`
 }
 
+// https://othera-thincats-prod.azurewebsites.net/api/loans/2/exchange
 // https://othera-thincats-prod.azurewebsites.net/api/loans/2/exchange/current-status
 type Loan struct {
-	Amount              float64 `json:"amount"` //Original amount
-	Created             string  `json:"created"`
-	BorrowerRate        float64 `json:"borrowerRate"`
-	EndDate             string  `json:"endDate"`
-	LoanTerm            string  `json:"loanTerm"`
-	LoanTermMonth       float64 `json:"loanTermMonth"`
-	LoanTermYear        float64 `json:"loanTermYear"`
-	FirstName           string  `json:"firstName"`
-	LastName            string  `json:"lastName"`
-	Email               string  `json:"email"`
-	StartDate           string  `json:"startDate"`
-	StatusName          string  `json:"statusName"`
-	Name                string  `json:"name"`
-	Id                  int64   `json:"id"`
-	ExchangeLoanId      string  `json:"exchangeLoanId"`
-	BalanceTransactions BalanceTransactions
-	Repayments          []Repayment
+	Amount                               float64 `json:"amount"` //Original amount
+	Created                              string  `json:"created"`
+	BorrowerRate                         float64 `json:"borrowerRate"`
+	EndDate                              string  `json:"endDate"`
+	LoanTerm                             string  `json:"loanTerm"`
+	LoanTermMonth                        float64 `json:"loanTermMonth"`
+	LoanTermYear                         float64 `json:"loanTermYear"`
+	FirstName                            string  `json:"firstName"`
+	LastName                             string  `json:"lastName"`
+	BorrowerFeePerRepay                  float64 `json:"borrowerFeePerRepay"`
+	BorrowerName                         string  `json:"borrowerName"`
+	LoanAccountID                        string  `json:"loanAccountId"`
+	LoanAcctDueDefaultStatus             string  `json:"loanAcctDueDefaultStatus"`
+	LoanAcctIntCapitalizedFlag           string  `json:"loanAcctIntCapitalizedFlag"`
+	LoanAcctIntCapitalizedFlagInvestor   string  `json:"loanAcctIntCapitalizedFlagInvestor"`
+	LoanAcctStatus                       string  `json:"loanAcctStatus"`
+	LoanAmount                           float64 `json:"loanAmount"`
+	LoanDescription                      string  `json:"loanDescription"`
+	LoanDurationInMonths                 int64   `json:"loanDurationInMonths"`
+	LoanGrade                            string  `json:"loanGrade"`
+	LoanInterestApplicationDay           int64   `json:"loanInterestApplicationDay"`
+	LoanInterestApplicationFrequency     int64   `json:"loanInterestApplicationFrequency"`
+	LoanInterestApplicationFrequencyType string  `json:"loanInterestApplicationFrequencyType"`
+	LoanInvestorRateOfInterest           float64 `json:"loanInvestorRateOfInterest"`
+	LoanLvr                              float64 `json:"loanLvr"`
+	LoanPenalRateOfInterest              float64 `json:"loanPenalRateOfInterest"`
+	LoanProdCode                         string  `json:"loanProdCode"`
+	LoanPurpose                          string  `json:"loanPurpose"`
+	LoanRateOfInterest                   float64 `json:"loanRateOfInterest"`
+	LoanRepaymentMethod                  string  `json:"loanRepaymentMethod"`
+	LoanStartDate                        string  `json:"loanStartDate"`
+	NextIntCalcStartDate                 string  `json:"nextIntCalcStartDate"`
+	SecurityDetails                      string  `json:"securityDetails"`
+	SpdsDocLink                          string  `json:"spdsDocLink"`
+	Version                              int64   `json:"version"`
+	Email                                string  `json:"email"`
+	StartDate                            string  `json:"startDate"`
+	StatusName                           string  `json:"statusName"`
+	Name                                 string  `json:"name"`
+	Id                                   int64   `json:"id"`
+	ExchangeLoanId                       string  `json:"exchangeLoanId"`
+	BalanceTransactions                  BalanceTransactions
+	Repayments                           []Repayment
 }
 
 // https://thinapi.blockbond.com.au//loans/loan/blk/invportfolio/10240/1/20
@@ -306,6 +333,27 @@ func (data *Data) RefreshLoanBalances() {
 			}
 		}(id, &data.Loans[i])
 		data.Semaphore <- 1
+		go func(accountName string, toUpdate *Loan) {
+			client := &http.Client{
+				Jar: data.CookieJar,
+			}
+			req, _ := http.NewRequest("GET", "https://othera-thincats-prod.azurewebsites.net/api/loans/"+accountName+"/exchange", nil)
+			resp, err := client.Do(req)
+			<-data.Semaphore
+			if err != nil {
+				log.Fatalln(err)
+			}
+
+			err = json.NewDecoder(resp.Body).Decode(toUpdate)
+			if err != nil {
+				buf := new(bytes.Buffer)
+				buf.ReadFrom(resp.Body)
+				newStr := buf.String()
+				log.Println(newStr)
+				log.Fatalln(err)
+			}
+		}(id, &data.Loans[i])
+		data.Semaphore <- 1
 		go func(accountName string, toUpdate *BalanceTransactions) {
 			client := &http.Client{
 				Jar: data.CookieJar,
@@ -518,18 +566,18 @@ func main() {
 	addLog := func(logs *string, line string) {
 		log.Println(line)
 		newString := *logs + "\n" + line
-		logs = &newString
+		*logs = newString
 	}
 	addErr := func(logs *string, err error) {
 		log.Println(err)
 		newString := *logs + "\n" + err.Error()
-		logs = &newString
+		*logs = newString
 	}
 
 	addSpew := func(logs *string, structure interface{}) {
 		spew.Dump(structure)
 		newString := *logs + "\n" + spew.Sdump(structure)
-		logs = &newString
+		*logs = newString
 	}
 
 	withinWeek := func(logs *string, time1 string, time2 string) bool {
@@ -557,14 +605,13 @@ func main() {
 		return false
 	}
 
-	router.GET("/data/loan-balance-conciliation", func(c *gin.Context) {
+	router.GET("/report/loan-balance-rec", func(c *gin.Context) {
 		// todo if I throw all the data into an id keyed map instead of an array it will be far faster to access
-		// match dates
-		// split into CSVs
 
 		logs := ""
 
 		loanBalanceRec := 0
+		loanWithRepaymentOutstanding := 0
 
 		loanBalanceProblemLoans := make(map[string]int64)
 
@@ -616,7 +663,17 @@ func main() {
 					loanBalanceRec++
 					continue
 				}
-				if within(loanBalance.Outstanding, loan.BalanceTransactions.PrincipleAmount-loan.BalanceTransactions.RepaymentDueAmount+(loan.BalanceTransactions.PrincipleAmount*loan.BorrowerRate/12), 5) {
+				repaymentAmount := float64(0)
+				if loan.BalanceTransactions.RepaymentDueAmount > 5 {
+					addLog(&logs, "This loan needs a repayment of:")
+					addLog(&logs, loanBalance.Id)
+					addLog(&logs, loanBalance.Name)
+					addLog(&logs, strconv.FormatFloat(loan.BalanceTransactions.RepaymentDueAmount, 'f', 6, 64))
+					addLog(&logs, "-")
+					loanWithRepaymentOutstanding++
+					repaymentAmount = loan.BalanceTransactions.RepaymentDueAmount - (loan.BalanceTransactions.PrincipleAmount * loan.BorrowerRate / 100 / 12) - loan.BorrowerFeePerRepay
+				}
+				if within(loanBalance.Outstanding, loan.BalanceTransactions.PrincipleAmount-repaymentAmount, 5) || within(loanBalance.Outstanding, loan.BalanceTransactions.PrincipleAmount, 5) {
 					addLog(&logs, "OK")
 					continue
 				}
@@ -624,14 +681,14 @@ func main() {
 				loanBalanceProblemLoans[loanBalance.Id]++
 				if conf.DetailedMatch {
 					addLog(&logs, "Out By")
-					addLog(&logs, strconv.FormatFloat(loanBalance.Outstanding-loan.BalanceTransactions.PrincipleAmount+loan.BalanceTransactions.RepaymentDueAmount-(loan.BalanceTransactions.PrincipleAmount*loan.BorrowerRate/12), 'f', 6, 64))
+					addLog(&logs, strconv.FormatFloat(loanBalance.Outstanding-loan.BalanceTransactions.PrincipleAmount+repaymentAmount, 'f', 6, 64))
 					addLog(&logs, "expected: ")
 					addSpew(&logs, loanBalance)
 					addLog(&logs, "got: ")
 					loan.BalanceTransactions.Transactions = []BalanceTransaction{}
 					addSpew(&logs, loan.BalanceTransactions)
 				} else {
-					addLog(&logs, "expected: "+strconv.FormatFloat(loan.BalanceTransactions.PrincipleAmount-loan.BalanceTransactions.RepaymentDueAmount+(loan.BalanceTransactions.PrincipleAmount*loan.BorrowerRate/12), 'f', 6, 64))
+					addLog(&logs, "expected: "+strconv.FormatFloat(loan.BalanceTransactions.PrincipleAmount-repaymentAmount, 'f', 6, 64))
 					addLog(&logs, "got: "+strconv.FormatFloat(loanBalance.Outstanding, 'f', 6, 64))
 					log.Printf("%d%s%s", loan.Id, loan.Name, strconv.FormatFloat(loan.Amount, 'f', 6, 64))
 				}
@@ -639,6 +696,7 @@ func main() {
 		}
 
 		addLog(&logs, "loanBalanceRec: "+strconv.FormatInt(int64(loanBalanceRec), 10))
+		addLog(&logs, "loanWithRepaymentOutstanding: "+strconv.FormatInt(int64(loanWithRepaymentOutstanding), 10))
 
 		addLog(&logs, "loanBalanceProblemLoans: ")
 		addSpew(&logs, loanBalanceProblemLoans)
@@ -653,10 +711,8 @@ func main() {
 		c.Header("Content-Disposition", "attachment; filename=31-Oct-loan-balance-rec-report.txt")
 		c.Data(http.StatusOK, "text/csv", []byte(logs))
 	})
-	router.GET("/report/lender-holdings-reconciliation", func(c *gin.Context) {
+	router.GET("/report/lender-holdings-rec", func(c *gin.Context) {
 		// todo if I throw all the data into an id keyed map instead of an array it will be far faster to access
-		// match dates
-		// split into CSVs
 
 		logs := ""
 
@@ -753,10 +809,8 @@ func main() {
 		c.Header("Content-Disposition", "attachment; filename=31-Oct-lender-holdings-rec-report.txt")
 		c.Data(http.StatusOK, "text/csv", []byte(logs))
 	})
-	router.GET("/report/transactions-reconciliations", func(c *gin.Context) {
+	router.GET("/report/transactions-rec", func(c *gin.Context) {
 		// todo if I throw all the data into an id keyed map instead of an array it will be far faster to access
-		// match dates
-		// split into CSVs
 
 		type CSVTransaction struct {
 			UserId          string  `csv:"User ID"`
@@ -800,7 +854,6 @@ func main() {
 					}
 					for index, investorTransaction := range investor.Transactions {
 						if transaction.LoanId == investorTransaction.PartitionKey && !doneTxns[investorTransaction.TxnId] {
-							//todo match formula?
 
 							amountMatch := within(investorTransaction.TxnAmt, -transaction.Dr, 1) || within(investorTransaction.TxnAmt, transaction.Cr, 1)
 							dateMatch := withinWeek(&logs, investorTransaction.TxnValueDate, transaction.Date)
@@ -847,14 +900,19 @@ func main() {
 		c.Header("Content-Disposition", "attachment; filename=31-Oct-transactions-rec-report.txt")
 		c.Data(http.StatusOK, "text/csv", []byte(logs))
 	})
-	router.GET("/report/investor-balance-reconciliation", func(c *gin.Context) {
+	router.GET("/report/investor-balance-rec", func(c *gin.Context) {
 		// todo if I throw all the data into an id keyed map instead of an array it will be far faster to access
-		// match dates
-		// split into CSVs
 
+		type RecItem struct {
+			InvestorID            string
+			InvestorName          string
+			AdjustmentTransaction float64
+			ExpectedTotal         float64
+		}
 		logs := ""
 
 		investorBalanceRec := 0
+		recList := []RecItem{}
 
 		// Investor balance rec
 		{
@@ -900,6 +958,7 @@ func main() {
 					continue
 				}
 				investorBalanceRec++
+				recList = append(recList, RecItem{InvestorID: investorbalance.Id, InvestorName: investorbalance.User, AdjustmentTransaction: investorbalance.Balance + investorbalance.Funds - investor.AccountBalance, ExpectedTotal: investorbalance.Balance + investorbalance.Funds})
 				if conf.DetailedMatch {
 					addLog(&logs, "Out By")
 					addLog(&logs, strconv.FormatFloat(investorbalance.Balance+investorbalance.Funds-investor.AccountBalance, 'f', 6, 64))
@@ -922,6 +981,8 @@ func main() {
 		addLog(&logs, "Done")
 
 		path := exPath + string(os.PathSeparator) + "investor-balance-rec.txt"
+
+		addSpew(&logs, recList)
 
 		ioutil.WriteFile(path, []byte(logs), 0666)
 
