@@ -24,7 +24,7 @@ import (
 	"net/http/cookiejar"
 )
 
-// sub part of https://othera-thincats-prod.azurewebsites.net/api/loans/2/exchange/balance-transactions
+// sub part of https://borrower.thincats.com.au/api/loans/2/exchange/balance-transactions
 type BalanceTransaction struct {
 	AccruedInterestAmount     float64 `json:"accruedInterestAmount"`
 	CapitalizedInterestAmount float64 `json:"capitalizedInterestAmount"`
@@ -35,7 +35,7 @@ type BalanceTransaction struct {
 	Date                      string  `json:"date"`
 }
 
-// https://othera-thincats-prod.azurewebsites.net/api/loans/2/exchange/balance-transactions
+// https://borrower.thincats.com.au/api/loans/2/exchange/balance-transactions
 type BalanceTransactions struct {
 	AccruedInterestAmount     float64              `json:"accruedInterestAmount"`
 	CapitalizedInterestAmount float64              `json:"capitalizedInterestAmount"`
@@ -46,7 +46,7 @@ type BalanceTransactions struct {
 	Transactions              []BalanceTransaction `json:"transactions"`
 }
 
-// https://othera-thincats-prod.azurewebsites.net/api/loans/2/exchange/dues
+// https://borrower.thincats.com.au/api/loans/2/exchange/dues
 type Repayment struct {
 	BorrowerInvestorIndicator string  `json:"borrowerInvestorIndicator"`
 	DemandDueStatus           string  `json:"demandDueStatus"`
@@ -58,8 +58,8 @@ type Repayment struct {
 	IntCapitalizedFlag        string  `json:"intCapitalizedFlag"`
 }
 
-// https://othera-thincats-prod.azurewebsites.net/api/loans/2/exchange
-// https://othera-thincats-prod.azurewebsites.net/api/loans/2/exchange/current-status
+// https://borrower.thincats.com.au/api/loans/2/exchange
+// https://borrower.thincats.com.au/api/loans/2/exchange/current-status
 type Loan struct {
 	Amount                               float64 `json:"amount"` //Original amount
 	Created                              string  `json:"created"`
@@ -106,9 +106,9 @@ type Loan struct {
 	Repayments                           []Repayment
 }
 
-// https://thinapi.blockbond.com.au//loans/loan/blk/invportfolio/10240/1/20
-// https://thinapi.blockbond.com.au//loans/loan/exchange/investor/interest/10240/1/20
-// https://thinapi.blockbond.com.au//loans/loan/exchange/investor/loans/10240/1/20
+// https://investorapi.thincats.com.au//loans/loan/blk/invportfolio/10240/1/20
+// https://investorapi.thincats.com.au//loans/loan/exchange/investor/interest/10240/1/20
+// https://investorapi.thincats.com.au//loans/loan/exchange/investor/loans/10240/1/20
 type InvestorLoan struct {
 	LoanAmount                 float64 `json:"loanAmount"`
 	OutstandingPrinciple       float64 `json:"outstandingPrinciple"`
@@ -128,7 +128,7 @@ type InvestorLoan struct {
 	InvestorLoan               *Loan
 }
 
-// https://thinapi.blockbond.com.au//loans/loan/exchange/10240/txn/1/20
+// https://investorapi.thincats.com.au//loans/loan/exchange/10240/txn/1/20
 type Transaction struct {
 	TxnId                     string  `json:"txnId"`
 	TxnValueDate              string  `json:"txnValueDate"`
@@ -142,7 +142,7 @@ type Transaction struct {
 }
 
 // investors
-// https://thinapi.blockbond.com.au/loans/loan/exchange/investor/balance/10240
+// https://investorapi.thincats.com.au/loans/loan/exchange/investor/balance/10240
 type Investor struct {
 	AccountName      string  `json:"accountName"`
 	Email            string  `json:"email"`
@@ -174,8 +174,8 @@ type Config struct {
 	DetailedMatch        bool
 }
 
-// https://othera-thincats-prod.azurewebsites.net/api/loans/loan-managements
-// https://thinapi.blockbond.com.au//accounts/accounts
+// https://borrower.thincats.com.au/api/loans/loan-managements
+// https://investorapi.thincats.com.au//accounts/accounts
 type Data struct {
 	Config        Config
 	InvestorToken string
@@ -194,7 +194,7 @@ func (data *Data) LoginInvestor() {
 	form.Add("grant_type", "password")
 	form.Add("username", data.Config.Username)
 	form.Add("password", data.Config.Pass)
-	req, _ := http.NewRequest("POST", "https://thinapi.blockbond.com.au/uaa/oauth/token", strings.NewReader(form.Encode()))
+	req, _ := http.NewRequest("POST", "https://investorapi.thincats.com.au/uaa/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Authorization", data.Config.Basic)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := client.Do(req)
@@ -222,7 +222,7 @@ func (data *Data) LoginLender() {
 	client := &http.Client{
 		Jar: data.CookieJar,
 	}
-	req, _ := http.NewRequest("POST", "https://othera-thincats-prod.azurewebsites.net/api/user", b)
+	req, _ := http.NewRequest("POST", "https://borrower.thincats.com.au/api/user", b)
 	req.Header.Set("Content-Type", "application/json")
 	_, err := client.Do(req)
 	if err != nil {
@@ -232,7 +232,7 @@ func (data *Data) LoginLender() {
 
 func (data *Data) RefreshInvestors() {
 	client := &http.Client{}
-	req, _ := http.NewRequest("GET", "https://thinapi.blockbond.com.au//accounts/accounts", nil)
+	req, _ := http.NewRequest("GET", "https://investorapi.thincats.com.au//accounts/accounts", nil)
 	req.Header.Set("Authorization", "Bearer "+data.InvestorToken)
 	resp, err := client.Do(req)
 	if err != nil {
@@ -255,7 +255,7 @@ func (data *Data) RefreshInvestorBalances() {
 		data.Semaphore <- 1
 		go func(accountName string, toUpdate *Investor) {
 			client := &http.Client{}
-			req, _ := http.NewRequest("GET", "https://thinapi.blockbond.com.au/loans/loan/exchange/investor/balance/"+accountName, nil)
+			req, _ := http.NewRequest("GET", "https://investorapi.thincats.com.au/loans/loan/exchange/investor/balance/"+accountName, nil)
 			req.Header.Set("Authorization", "Bearer "+data.InvestorToken)
 			resp, err := client.Do(req)
 			<-data.Semaphore
@@ -271,7 +271,7 @@ func (data *Data) RefreshInvestorBalances() {
 		data.Semaphore <- 1
 		go func(accountName string, toUpdate *Investor) {
 			client := &http.Client{}
-			req, _ := http.NewRequest("GET", "https://thinapi.blockbond.com.au//loans/loan/exchange/"+accountName+"/txn/1/5000", nil)
+			req, _ := http.NewRequest("GET", "https://investorapi.thincats.com.au//loans/loan/exchange/"+accountName+"/txn/1/5000", nil)
 			req.Header.Set("Authorization", "Bearer "+data.InvestorToken)
 			resp, err := client.Do(req)
 			<-data.Semaphore
@@ -287,7 +287,7 @@ func (data *Data) RefreshInvestorBalances() {
 		data.Semaphore <- 1
 		go func(accountName string, toUpdate *Investor) {
 			client := &http.Client{}
-			req, _ := http.NewRequest("GET", "https://thinapi.blockbond.com.au//loans/loan/blk/invportfolio/"+accountName+"/1/5000", nil)
+			req, _ := http.NewRequest("GET", "https://investorapi.thincats.com.au//loans/loan/blk/invportfolio/"+accountName+"/1/5000", nil)
 			req.Header.Set("Authorization", "Bearer "+data.InvestorToken)
 			resp, err := client.Do(req)
 			<-data.Semaphore
@@ -316,7 +316,7 @@ func (data *Data) RefreshLoanBalances() {
 			client := &http.Client{
 				Jar: data.CookieJar,
 			}
-			req, _ := http.NewRequest("GET", "https://othera-thincats-prod.azurewebsites.net/api/loans/"+accountName+"/exchange/current-status", nil)
+			req, _ := http.NewRequest("GET", "https://borrower.thincats.com.au/api/loans/"+accountName+"/exchange/current-status", nil)
 			resp, err := client.Do(req)
 			<-data.Semaphore
 			if err != nil {
@@ -337,7 +337,7 @@ func (data *Data) RefreshLoanBalances() {
 			client := &http.Client{
 				Jar: data.CookieJar,
 			}
-			req, _ := http.NewRequest("GET", "https://othera-thincats-prod.azurewebsites.net/api/loans/"+accountName+"/exchange", nil)
+			req, _ := http.NewRequest("GET", "https://borrower.thincats.com.au/api/loans/"+accountName+"/exchange", nil)
 			resp, err := client.Do(req)
 			<-data.Semaphore
 			if err != nil {
@@ -358,7 +358,7 @@ func (data *Data) RefreshLoanBalances() {
 			client := &http.Client{
 				Jar: data.CookieJar,
 			}
-			req, _ := http.NewRequest("GET", "https://othera-thincats-prod.azurewebsites.net/api/loans/"+accountName+"/exchange/balance-transactions", nil)
+			req, _ := http.NewRequest("GET", "https://borrower.thincats.com.au/api/loans/"+accountName+"/exchange/balance-transactions", nil)
 			resp, err := client.Do(req)
 			<-data.Semaphore
 			if err != nil {
@@ -375,7 +375,7 @@ func (data *Data) RefreshLoanBalances() {
 			client := &http.Client{
 				Jar: data.CookieJar,
 			}
-			req, _ := http.NewRequest("GET", "https://othera-thincats-prod.azurewebsites.net/api/loans/"+accountName+"/exchange/dues", nil)
+			req, _ := http.NewRequest("GET", "https://borrower.thincats.com.au/api/loans/"+accountName+"/exchange/dues", nil)
 			resp, err := client.Do(req)
 			<-data.Semaphore
 			if err != nil {
@@ -395,7 +395,7 @@ func (data *Data) RefreshLoans() {
 	client := &http.Client{
 		Jar: data.CookieJar,
 	}
-	req, _ := http.NewRequest("GET", "https://othera-thincats-prod.azurewebsites.net/api/loans/loan-managements", nil)
+	req, _ := http.NewRequest("GET", "https://borrower.thincats.com.au/api/loans/loan-managements", nil)
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Fatalln(err)
