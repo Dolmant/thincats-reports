@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gocarina/gocsv"
 
 	"github.com/gin-contrib/cors"
@@ -563,433 +562,547 @@ func main() {
 		c.Data(http.StatusOK, "text/csv", []byte(csvContent))
 	})
 
-	addLog := func(logs *string, line string) {
-		log.Println(line)
-		newString := *logs + "\n" + line
-		*logs = newString
-	}
-	addErr := func(logs *string, err error) {
-		log.Println(err)
-		newString := *logs + "\n" + err.Error()
-		*logs = newString
-	}
+	router.GET("/report/lender-summary", func(c *gin.Context) {
+		csvTitles := "ID,Name,"
+		csvBody := ""
+		csvInternal := "INTERNAL,,"
+		csvExternal := "EXTERNAL,,"
+		csvInternalp := "%,,"
+		csvExternalp := "%,,"
+		csvTotal := "TOTAL,,"
+		csvBidCount := "BIDS,,"
+		csvAvgBids := "Avg Bid/Loan,,"
 
-	addSpew := func(logs *string, structure interface{}) {
-		spew.Dump(structure)
-		newString := *logs + "\n" + spew.Sdump(structure)
-		*logs = newString
-	}
+		internalIds := map[string]bool{"10110": true, "10131": true, "10156": true, "10171": true, "10375": true}
 
-	withinWeek := func(logs *string, time1 string, time2 string) bool {
-		layout := "02/01/2006 15:04 AEST"
-		time2Parsed, err := time.Parse(layout, time2)
-		if err != nil {
-			addErr(logs, err)
-			return false
+		numberInvestments := map[string]float64{}
+		internalInvestments := map[string]float64{}
+		externalInvestments := map[string]float64{}
+		totalInvestments := map[string]float64{}
+
+		var loanIDs []string
+
+		for _, loan := range Data.Loans {
+			loanIDs = append(loanIDs, loan.LoanAccountID)
+			csvTitles += loan.Name + ","
 		}
-		time1Parsed, err := time.Parse(layout, time2)
-		if err != nil {
-			addErr(logs, err)
-			return false
-		}
-		diff := time1Parsed.Sub(time2Parsed)
-		if diff.Hours() < 96 && diff.Hours() > -96 {
-			return true
-		}
-		return false
-	}
-	within := func(a float64, b float64, amount float64) bool {
-		if (a-b < amount) && (a-b > -amount) {
-			return true
-		}
-		return false
-	}
+		csvTitles += "Total\n"
 
-	router.GET("/report/loan-balance-rec", func(c *gin.Context) {
-		// todo if I throw all the data into an id keyed map instead of an array it will be far faster to access
-
-		logs := ""
-
-		loanBalanceRec := 0
-		loanWithRepaymentOutstanding := 0
-
-		loanBalanceProblemLoans := make(map[string]int64)
-
-		// Loan balance rec
-		{
-			addLog(&logs, "Loan Balance Rec")
-			type CSVLoanBalance struct {
-				Id          string  `csv:"Id"`
-				Name        string  `csv:"Name"`
-				Org         string  `csv:"Org"`
-				Int         string  `csv:"Int"`
-				Months      string  `csv:"Months"`
-				Settled     string  `csv:"Settled"`
-				Closed      string  `csv:"Closed"`
-				ElapsedMths string  `csv:"Elapsed mths"`
-				BalanceMths string  `csv:"Balance mths"`
-				Outstanding float64 `csv:"OS"`
-			}
-
-			loanBalanceFile, err := os.OpenFile("loan balances 31oct.csv", os.O_RDWR|os.O_CREATE, os.ModePerm)
-			if err != nil {
-				panic(err)
-			}
-			defer loanBalanceFile.Close()
-
-			LoanBalance := []*CSVLoanBalance{}
-
-			if err := gocsv.UnmarshalFile(loanBalanceFile, &LoanBalance); err != nil { // Load clients from file
-				panic(err)
-			}
-
-			for _, loanBalance := range LoanBalance {
-				var loan *Loan
-				for _, loan2 := range Data.Loans {
-					if loanBalance.Id == loan2.ExchangeLoanId {
-						loan = &loan2
-						break
-					}
-					if loanBalance.Id == "4956" && loan2.ExchangeLoanId == "L182980532" {
-						loan = &loan2
-						break
+		for _, investor := range Data.Investors {
+			total := float64(0)
+			csvBody += investor.AccountName + "," + investor.GivenName + " " + investor.Surname + ","
+			for _, loanID := range loanIDs {
+				found := false
+				for _, loan := range investor.InvestorLoans {
+					if loanID == loan.LoanAcctId {
+						found = true
+						if internalIds[investor.AccountName] {
+							internalInvestments[loanID] += loan.OrgTokenValue * loan.NumofTokensHeld
+						} else {
+							externalInvestments[loanID] += loan.OrgTokenValue * loan.NumofTokensHeld
+						}
+						numberInvestments[loanID] += 1
+						totalInvestments[loanID] += loan.OrgTokenValue * loan.NumofTokensHeld
+						csvBody += strconv.FormatFloat(loan.OrgTokenValue*loan.NumofTokensHeld, 'f', 6, 64) + ","
+						total += loan.OrgTokenValue * loan.NumofTokensHeld
 					}
 				}
-				if loan == nil {
-					addLog(&logs, "Could not find a matching loan:")
-					addLog(&logs, loanBalance.Id)
-					addLog(&logs, loanBalance.Name)
-					loanBalanceProblemLoans[loanBalance.Id]++
-					loanBalanceRec++
-					continue
-				}
-				repaymentAmount := float64(0)
-				if loan.BalanceTransactions.RepaymentDueAmount > 5 {
-					addLog(&logs, "This loan needs a repayment of:")
-					addLog(&logs, loanBalance.Id)
-					addLog(&logs, loanBalance.Name)
-					addLog(&logs, strconv.FormatFloat(loan.BalanceTransactions.RepaymentDueAmount, 'f', 6, 64))
-					addLog(&logs, "-")
-					loanWithRepaymentOutstanding++
-					repaymentAmount = loan.BalanceTransactions.RepaymentDueAmount - (loan.BalanceTransactions.PrincipleAmount * loan.BorrowerRate / 100 / 12) - loan.BorrowerFeePerRepay
-				}
-				if within(loanBalance.Outstanding, loan.BalanceTransactions.PrincipleAmount-repaymentAmount, 5) || within(loanBalance.Outstanding, loan.BalanceTransactions.PrincipleAmount, 5) {
-					addLog(&logs, "OK")
-					continue
-				}
-				loanBalanceRec++
-				loanBalanceProblemLoans[loanBalance.Id]++
-				if conf.DetailedMatch {
-					addLog(&logs, "Out By")
-					addLog(&logs, strconv.FormatFloat(loanBalance.Outstanding-loan.BalanceTransactions.PrincipleAmount+repaymentAmount, 'f', 6, 64))
-					addLog(&logs, "expected: ")
-					addSpew(&logs, loanBalance)
-					addLog(&logs, "got: ")
-					loan.BalanceTransactions.Transactions = []BalanceTransaction{}
-					addSpew(&logs, loan.BalanceTransactions)
-				} else {
-					addLog(&logs, "expected: "+strconv.FormatFloat(loan.BalanceTransactions.PrincipleAmount-repaymentAmount, 'f', 6, 64))
-					addLog(&logs, "got: "+strconv.FormatFloat(loanBalance.Outstanding, 'f', 6, 64))
-					log.Printf("%d%s%s", loan.Id, loan.Name, strconv.FormatFloat(loan.Amount, 'f', 6, 64))
+				if !found {
+					csvBody += ","
 				}
 			}
+			csvBody += strconv.FormatFloat(total, 'f', 6, 64) + "\n"
 		}
 
-		addLog(&logs, "loanBalanceRec: "+strconv.FormatInt(int64(loanBalanceRec), 10))
-		addLog(&logs, "loanWithRepaymentOutstanding: "+strconv.FormatInt(int64(loanWithRepaymentOutstanding), 10))
+		totalInt := float64(0)
+		totalExt := float64(0)
+		total := float64(0)
+		totalBids := float64(0)
+		for _, loanID := range loanIDs {
+			totalInt += internalInvestments[loanID]
+			totalExt += externalInvestments[loanID]
+			total += totalInvestments[loanID]
+			totalBids += numberInvestments[loanID]
+			csvInternal += strconv.FormatFloat(internalInvestments[loanID], 'f', 6, 64) + ","
+			csvExternal += strconv.FormatFloat(externalInvestments[loanID], 'f', 6, 64) + ","
+			csvInternalp += strconv.FormatFloat(internalInvestments[loanID]/totalInvestments[loanID]*100, 'f', 6, 64) + ","
+			csvExternalp += strconv.FormatFloat(externalInvestments[loanID]/totalInvestments[loanID]*100, 'f', 6, 64) + ","
+			csvTotal += strconv.FormatFloat(totalInvestments[loanID], 'f', 6, 64) + ","
+			csvBidCount += strconv.FormatFloat(numberInvestments[loanID], 'f', 6, 64) + ","
+			csvAvgBids += strconv.FormatFloat(totalInvestments[loanID]/numberInvestments[loanID], 'f', 6, 64) + ","
+		}
+		csvInternal += strconv.FormatFloat(totalInt, 'f', 6, 64) + "\n"
+		csvExternal += strconv.FormatFloat(totalExt, 'f', 6, 64) + "\n"
+		csvInternalp += "," + "\n"
+		csvExternalp += "," + "\n"
+		csvTotal += strconv.FormatFloat(total, 'f', 6, 64) + "\n"
+		csvBidCount += strconv.FormatFloat(totalBids, 'f', 6, 64) + "\n"
+		csvAvgBids += "," + "\n"
 
-		addLog(&logs, "loanBalanceProblemLoans: ")
-		addSpew(&logs, loanBalanceProblemLoans)
-
-		addLog(&logs, "Done")
-
-		path := exPath + string(os.PathSeparator) + "loan-balance-rec.txt"
-
-		ioutil.WriteFile(path, []byte(logs), 0666)
+		csvContent := csvTitles + csvInternal + csvInternalp + csvExternal + csvExternalp + csvTotal + csvBidCount + csvAvgBids + csvBody
 
 		c.Header("Content-Description", "File Transfer")
-		c.Header("Content-Disposition", "attachment; filename=31-Oct-loan-balance-rec-report.txt")
-		c.Data(http.StatusOK, "text/csv", []byte(logs))
+		c.Header("Content-Disposition", "attachment; filename=Lender-Summary-"+time.Now().Format("YYYY-MM-DD")+".csv")
+		c.Data(http.StatusOK, "text/csv", []byte(csvContent))
 	})
-	router.GET("/report/lender-holdings-rec", func(c *gin.Context) {
-		// todo if I throw all the data into an id keyed map instead of an array it will be far faster to access
 
-		logs := ""
+	router.GET("/report/most-recent-bid-listing", func(c *gin.Context) {
+		csvTitles := "ID,Name,"
+		csvBody := ""
 
-		lenderHoldingRec := 0
-		lenderHoldingRecNotFound := 0
-
-		lenderHoldingProblemLoans := make(map[string]int64)
-
-		// lender holding rec
-		{
-			addLog(&logs, "Investor Holdings Rec")
-			type CSVInvestorHoldings struct {
-				UserId             string  `csv:"User ID"`
-				BusinessName       string  `csv:"Business Name"`
-				LoanId             string  `csv:"App ID"`
-				Rate               float64 `csv:"Rate"`
-				Amount             float64 `csv:"Amount"`
-				CapitalOutstanding float64 `csv:"Capital Outstanding"`
+		mostRecentLoan := Loan{}
+		for _, loan := range Data.Loans {
+			if loan.StartDate > mostRecentLoan.StartDate {
+				mostRecentLoan = loan
 			}
-
-			InvestorHoldingsFile, err := os.OpenFile("lender_holding-31oct18.csv", os.O_RDWR|os.O_CREATE, os.ModePerm)
-			if err != nil {
-				panic(err)
-			}
-			defer InvestorHoldingsFile.Close()
-
-			InvestorHoldings := []*CSVInvestorHoldings{}
-
-			if err := gocsv.UnmarshalFile(InvestorHoldingsFile, &InvestorHoldings); err != nil { // Load clients from file
-				panic(err)
-			}
-
-			for _, investorHolding := range InvestorHoldings {
-				var loan *InvestorLoan
-				for _, investor := range Data.Investors {
-					for _, loan2 := range investor.InvestorLoans {
-						if investorHolding.UserId == investor.AccountName && investorHolding.LoanId == loan2.LoanAcctId {
-							loan = &loan2
-							break
-						}
-						if investorHolding.LoanId == "4956" && loan2.LoanAcctId == "L182980532" && investorHolding.UserId == investor.AccountName {
-							loan = &loan2
-							break
-						}
-					}
-					if loan != nil {
-						break
-					}
-				}
-				if loan == nil {
-					addLog(&logs, "Could not find a match, there are no holdings for this user:")
-					addLog(&logs, investorHolding.UserId)
-					addLog(&logs, investorHolding.BusinessName)
-					addLog(&logs, investorHolding.LoanId)
-					lenderHoldingRecNotFound++
-					lenderHoldingProblemLoans[investorHolding.LoanId]++
-					continue
-				}
-				if within(investorHolding.CapitalOutstanding, (loan.CurrentTokenValue*loan.NumofTokensHeld), 1) && within(investorHolding.Amount, (loan.OrgTokenValue*loan.NumofTokensHeld), 1) {
-					addLog(&logs, "OK")
-					continue
-				}
-				lenderHoldingRec++
-				lenderHoldingProblemLoans[investorHolding.LoanId]++
-				if conf.DetailedMatch {
-					addLog(&logs, "Out By")
-					addLog(&logs, strconv.FormatFloat(investorHolding.CapitalOutstanding-(loan.CurrentTokenValue*loan.NumofTokensHeld), 'f', 6, 64))
-					addLog(&logs, strconv.FormatFloat(investorHolding.Amount-(loan.OrgTokenValue*loan.NumofTokensHeld), 'f', 6, 64))
-					addLog(&logs, "expected: ")
-					addSpew(&logs, investorHolding)
-					addLog(&logs, "got: ")
-					addSpew(&logs, loan)
-				} else {
-					addLog(&logs, "expected (outstanding, org): "+strconv.FormatFloat(investorHolding.CapitalOutstanding, 'f', 6, 64)+" and "+strconv.FormatFloat(investorHolding.Amount, 'f', 6, 64))
-					addLog(&logs, "got (outstanding, org): "+strconv.FormatFloat((loan.CurrentTokenValue*loan.NumofTokensHeld), 'f', 6, 64)+" and "+strconv.FormatFloat((loan.OrgTokenValue*loan.NumofTokensHeld), 'f', 6, 64))
-				}
-			}
-
 		}
+		csvTitles += mostRecentLoan.Name + "\n"
 
-		addLog(&logs, "lenderHoldingRec: "+strconv.FormatInt(int64(lenderHoldingRec), 10))
-		addLog(&logs, "lenderHoldingRecNotFound: "+strconv.FormatInt(int64(lenderHoldingRecNotFound), 10))
+		total := float64(0)
+		for _, investor := range Data.Investors {
+			for _, loan := range investor.InvestorLoans {
+				if mostRecentLoan.LoanAccountID == loan.LoanAcctId {
+					csvBody += investor.AccountName + "," + investor.GivenName + " " + investor.Surname + "," + strconv.FormatFloat(loan.OrgTokenValue*loan.NumofTokensHeld, 'f', 6, 64) + "\n"
+					total += loan.OrgTokenValue * loan.NumofTokensHeld
+				}
+			}
+		}
+		csvBody += "Total," + strconv.FormatFloat(total, 'f', 6, 64) + "\n"
 
-		addLog(&logs, "lenderHoldingProblemLoans: ")
-		addSpew(&logs, lenderHoldingProblemLoans)
-
-		addLog(&logs, "Done")
-
-		path := exPath + string(os.PathSeparator) + "lender-holdings-rec.txt"
-
-		ioutil.WriteFile(path, []byte(logs), 0666)
+		csvContent := csvTitles + csvBody
 
 		c.Header("Content-Description", "File Transfer")
-		c.Header("Content-Disposition", "attachment; filename=31-Oct-lender-holdings-rec-report.txt")
-		c.Data(http.StatusOK, "text/csv", []byte(logs))
+		c.Header("Content-Disposition", "attachment; filename=MostRecentBidListing-"+time.Now().Format("YYYY-MM-DD")+".csv")
+		c.Data(http.StatusOK, "text/csv", []byte(csvContent))
 	})
-	router.GET("/report/transactions-rec", func(c *gin.Context) {
-		// todo if I throw all the data into an id keyed map instead of an array it will be far faster to access
 
-		type CSVTransaction struct {
-			UserId          string  `csv:"User ID"`
-			LoanId          string  `csv:"Loan ID"`
-			User            string  `csv:"User"`
-			Date            string  `csv:"Date"`
-			TransactionType string  `csv:"Transaction Type"`
-			Dr              float64 `csv:"Dr"`
-			Cr              float64 `csv:"Cr"`
-			RunningBalance  float64 `csv:"Running Balance"`
-		}
+	// addLog := func(logs *string, line string) {
+	// 	log.Println(line)
+	// 	newString := *logs + "\n" + line
+	// 	*logs = newString
+	// }
+	// addErr := func(logs *string, err error) {
+	// 	log.Println(err)
+	// 	newString := *logs + "\n" + err.Error()
+	// 	*logs = newString
+	// }
 
-		logs := ""
+	// addSpew := func(logs *string, structure interface{}) {
+	// 	spew.Dump(structure)
+	// 	newString := *logs + "\n" + spew.Sdump(structure)
+	// 	*logs = newString
+	// }
 
-		transactionRec := 0
+	// withinWeek := func(logs *string, time1 string, time2 string) bool {
+	// 	layout := "02/01/2006 15:04 AEST"
+	// 	time2Parsed, err := time.Parse(layout, time2)
+	// 	if err != nil {
+	// 		addErr(logs, err)
+	// 		return false
+	// 	}
+	// 	time1Parsed, err := time.Parse(layout, time2)
+	// 	if err != nil {
+	// 		addErr(logs, err)
+	// 		return false
+	// 	}
+	// 	diff := time1Parsed.Sub(time2Parsed)
+	// 	if diff.Hours() < 96 && diff.Hours() > -96 {
+	// 		return true
+	// 	}
+	// 	return false
+	// }
+	// within := func(a float64, b float64, amount float64) bool {
+	// 	if (a-b < amount) && (a-b > -amount) {
+	// 		return true
+	// 	}
+	// 	return false
+	// }
 
-		problemTxns := make(map[string][]CSVTransaction)
+	// router.GET("/report/loan-balance-rec", func(c *gin.Context) {
+	// 	// todo if I throw all the data into an id keyed map instead of an array it will be far faster to access
 
-		// transaction rec
-		{
-			addLog(&logs, "Transaction Rec")
+	// 	logs := ""
 
-			transactionFile, err := os.OpenFile("loan balances 31oct.csv", os.O_RDWR|os.O_CREATE, os.ModePerm)
-			if err != nil {
-				panic(err)
-			}
-			defer transactionFile.Close()
+	// 	loanBalanceRec := 0
+	// 	loanWithRepaymentOutstanding := 0
 
-			Transactions := []*CSVTransaction{}
+	// 	loanBalanceProblemLoans := make(map[string]int64)
 
-			if err := gocsv.UnmarshalFile(transactionFile, &Transactions); err != nil { // Load clients from file
-				panic(err)
-			}
+	// 	// Loan balance rec
+	// 	{
+	// 		addLog(&logs, "Loan Balance Rec")
+	// 		type CSVLoanBalance struct {
+	// 			Id          string  `csv:"Id"`
+	// 			Name        string  `csv:"Name"`
+	// 			Org         string  `csv:"Org"`
+	// 			Int         string  `csv:"Int"`
+	// 			Months      string  `csv:"Months"`
+	// 			Settled     string  `csv:"Settled"`
+	// 			Closed      string  `csv:"Closed"`
+	// 			ElapsedMths string  `csv:"Elapsed mths"`
+	// 			BalanceMths string  `csv:"Balance mths"`
+	// 			Outstanding float64 `csv:"OS"`
+	// 		}
 
-			doneTxns := make(map[string]bool)
+	// 		loanBalanceFile, err := os.OpenFile("loan balances 31oct.csv", os.O_RDWR|os.O_CREATE, os.ModePerm)
+	// 		if err != nil {
+	// 			panic(err)
+	// 		}
+	// 		defer loanBalanceFile.Close()
 
-			for _, transaction := range Transactions {
-				for _, investor := range Data.Investors {
-					if investor.AccountName != transaction.UserId {
-						continue
-					}
-					for index, investorTransaction := range investor.Transactions {
-						if transaction.LoanId == investorTransaction.PartitionKey && !doneTxns[investorTransaction.TxnId] {
+	// 		LoanBalance := []*CSVLoanBalance{}
 
-							amountMatch := within(investorTransaction.TxnAmt, -transaction.Dr, 1) || within(investorTransaction.TxnAmt, transaction.Cr, 1)
-							dateMatch := withinWeek(&logs, investorTransaction.TxnValueDate, transaction.Date)
+	// 		if err := gocsv.UnmarshalFile(loanBalanceFile, &LoanBalance); err != nil { // Load clients from file
+	// 			panic(err)
+	// 		}
 
-							match := amountMatch && dateMatch
-							if match {
-								doneTxns[investorTransaction.TxnId] = true
-								if conf.DetailedMatch {
-									addLog(&logs, "expected: ")
-									addSpew(&logs, transaction)
-									addLog(&logs, "got: ")
-									addSpew(&logs, investorTransaction)
-								} else {
-									addLog(&logs, "expected: "+strconv.FormatFloat(float64(transaction.Cr), 'f', 6, 64)+" or "+strconv.FormatFloat(float64(transaction.Dr), 'f', 6, 64))
-									addLog(&logs, "got: "+strconv.FormatFloat(investorTransaction.TxnAmt, 'f', 6, 64))
-									log.Printf("Loan: %s, User: %s", transaction.LoanId, transaction.UserId)
-								}
-								break
-							}
-						}
-						if index == (len(investor.Transactions) - 1) {
-							transactionRec++
-							addLog(&logs, "Couldnt find:")
-							addSpew(&logs, transaction)
-							problemTxns[transaction.UserId] = append(problemTxns[transaction.UserId], *transaction)
-						}
-					}
-				}
-			}
-		}
+	// 		for _, loanBalance := range LoanBalance {
+	// 			var loan *Loan
+	// 			for _, loan2 := range Data.Loans {
+	// 				if loanBalance.Id == loan2.ExchangeLoanId {
+	// 					loan = &loan2
+	// 					break
+	// 				}
+	// 				if loanBalance.Id == "4956" && loan2.ExchangeLoanId == "L182980532" {
+	// 					loan = &loan2
+	// 					break
+	// 				}
+	// 			}
+	// 			if loan == nil {
+	// 				addLog(&logs, "Could not find a matching loan:")
+	// 				addLog(&logs, loanBalance.Id)
+	// 				addLog(&logs, loanBalance.Name)
+	// 				loanBalanceProblemLoans[loanBalance.Id]++
+	// 				loanBalanceRec++
+	// 				continue
+	// 			}
+	// 			repaymentAmount := float64(0)
+	// 			if loan.BalanceTransactions.RepaymentDueAmount > 5 {
+	// 				addLog(&logs, "This loan needs a repayment of:")
+	// 				addLog(&logs, loanBalance.Id)
+	// 				addLog(&logs, loanBalance.Name)
+	// 				addLog(&logs, strconv.FormatFloat(loan.BalanceTransactions.RepaymentDueAmount, 'f', 6, 64))
+	// 				addLog(&logs, "-")
+	// 				loanWithRepaymentOutstanding++
+	// 				repaymentAmount = loan.BalanceTransactions.RepaymentDueAmount - (loan.BalanceTransactions.PrincipleAmount * loan.BorrowerRate / 100 / 12) - loan.BorrowerFeePerRepay
+	// 			}
+	// 			if within(loanBalance.Outstanding, loan.BalanceTransactions.PrincipleAmount-repaymentAmount, 5) || within(loanBalance.Outstanding, loan.BalanceTransactions.PrincipleAmount, 5) {
+	// 				addLog(&logs, "OK")
+	// 				continue
+	// 			}
+	// 			loanBalanceRec++
+	// 			loanBalanceProblemLoans[loanBalance.Id]++
+	// 			if conf.DetailedMatch {
+	// 				addLog(&logs, "Out By")
+	// 				addLog(&logs, strconv.FormatFloat(loanBalance.Outstanding-loan.BalanceTransactions.PrincipleAmount+repaymentAmount, 'f', 6, 64))
+	// 				addLog(&logs, "expected: ")
+	// 				addSpew(&logs, loanBalance)
+	// 				addLog(&logs, "got: ")
+	// 				loan.BalanceTransactions.Transactions = []BalanceTransaction{}
+	// 				addSpew(&logs, loan.BalanceTransactions)
+	// 			} else {
+	// 				addLog(&logs, "expected: "+strconv.FormatFloat(loan.BalanceTransactions.PrincipleAmount-repaymentAmount, 'f', 6, 64))
+	// 				addLog(&logs, "got: "+strconv.FormatFloat(loanBalance.Outstanding, 'f', 6, 64))
+	// 				log.Printf("%d%s%s", loan.Id, loan.Name, strconv.FormatFloat(loan.Amount, 'f', 6, 64))
+	// 			}
+	// 		}
+	// 	}
 
-		addLog(&logs, "transactionRec: "+strconv.FormatInt(int64(transactionRec), 10))
+	// 	addLog(&logs, "loanBalanceRec: "+strconv.FormatInt(int64(loanBalanceRec), 10))
+	// 	addLog(&logs, "loanWithRepaymentOutstanding: "+strconv.FormatInt(int64(loanWithRepaymentOutstanding), 10))
 
-		addLog(&logs, "problem Txns by user:")
-		addSpew(&logs, problemTxns)
+	// 	addLog(&logs, "loanBalanceProblemLoans: ")
+	// 	addSpew(&logs, loanBalanceProblemLoans)
 
-		addLog(&logs, "Done")
+	// 	addLog(&logs, "Done")
 
-		path := exPath + string(os.PathSeparator) + "transactions-rec.txt"
+	// 	path := exPath + string(os.PathSeparator) + "loan-balance-rec.txt"
 
-		ioutil.WriteFile(path, []byte(logs), 0666)
+	// 	ioutil.WriteFile(path, []byte(logs), 0666)
 
-		c.Header("Content-Description", "File Transfer")
-		c.Header("Content-Disposition", "attachment; filename=31-Oct-transactions-rec-report.txt")
-		c.Data(http.StatusOK, "text/csv", []byte(logs))
-	})
-	router.GET("/report/investor-balance-rec", func(c *gin.Context) {
-		// todo if I throw all the data into an id keyed map instead of an array it will be far faster to access
+	// 	c.Header("Content-Description", "File Transfer")
+	// 	c.Header("Content-Disposition", "attachment; filename=31-Oct-loan-balance-rec-report.txt")
+	// 	c.Data(http.StatusOK, "text/csv", []byte(logs))
+	// })
+	// router.GET("/report/lender-holdings-rec", func(c *gin.Context) {
+	// 	// todo if I throw all the data into an id keyed map instead of an array it will be far faster to access
 
-		type RecItem struct {
-			InvestorID            string
-			InvestorName          string
-			AdjustmentTransaction float64
-			ExpectedTotal         float64
-		}
-		logs := ""
+	// 	logs := ""
 
-		investorBalanceRec := 0
-		recList := []RecItem{}
+	// 	lenderHoldingRec := 0
+	// 	lenderHoldingRecNotFound := 0
 
-		// Investor balance rec
-		{
+	// 	lenderHoldingProblemLoans := make(map[string]int64)
 
-			addLog(&logs, "Investor Balance Rec")
-			type CSVInvestorBalance struct {
-				Id              string  `csv:"ID"`
-				User            string  `csv:"User"`
-				Email           string  `csv:"Email"`
-				Balance         float64 `csv:"Balance"`
-				Funds           float64 `csv:"Funds (Committed)"`
-				InvestmentsLive float64 `csv:"Investments (live)"`
-				InvestmentsAllT float64 `csv:"Investments (all time)"`
-			}
+	// 	// lender holding rec
+	// 	{
+	// 		addLog(&logs, "Investor Holdings Rec")
+	// 		type CSVInvestorHoldings struct {
+	// 			UserId             string  `csv:"User ID"`
+	// 			BusinessName       string  `csv:"Business Name"`
+	// 			LoanId             string  `csv:"App ID"`
+	// 			Rate               float64 `csv:"Rate"`
+	// 			Amount             float64 `csv:"Amount"`
+	// 			CapitalOutstanding float64 `csv:"Capital Outstanding"`
+	// 		}
 
-			investorBalanceFile, err := os.OpenFile("user bals cob 31oct18.csv", os.O_RDWR|os.O_CREATE, os.ModePerm)
-			if err != nil {
-				panic(err)
-			}
-			defer investorBalanceFile.Close()
+	// 		InvestorHoldingsFile, err := os.OpenFile("lender_holding-31oct18.csv", os.O_RDWR|os.O_CREATE, os.ModePerm)
+	// 		if err != nil {
+	// 			panic(err)
+	// 		}
+	// 		defer InvestorHoldingsFile.Close()
 
-			investorBalance := []*CSVInvestorBalance{}
+	// 		InvestorHoldings := []*CSVInvestorHoldings{}
 
-			if err := gocsv.UnmarshalFile(investorBalanceFile, &investorBalance); err != nil { // Load clients from file
-				panic(err)
-			}
+	// 		if err := gocsv.UnmarshalFile(InvestorHoldingsFile, &InvestorHoldings); err != nil { // Load clients from file
+	// 			panic(err)
+	// 		}
 
-			for _, investorbalance := range investorBalance {
-				var investor *Investor
-				for _, investor2 := range Data.Investors {
-					if investorbalance.Id == investor2.AccountName {
-						investor = &investor2
-						break
-					}
-				}
-				if investor == nil {
-					investorBalanceRec++
-					addLog(&logs, "No match found for: "+investorbalance.Id)
-					continue
-				}
-				if within(investorbalance.Balance+investorbalance.Funds, investor.AccountBalance, 1) {
-					addLog(&logs, "OK")
-					continue
-				}
-				investorBalanceRec++
-				recList = append(recList, RecItem{InvestorID: investorbalance.Id, InvestorName: investorbalance.User, AdjustmentTransaction: investorbalance.Balance + investorbalance.Funds - investor.AccountBalance, ExpectedTotal: investorbalance.Balance + investorbalance.Funds})
-				if conf.DetailedMatch {
-					addLog(&logs, "Out By")
-					addLog(&logs, strconv.FormatFloat(investorbalance.Balance+investorbalance.Funds-investor.AccountBalance, 'f', 6, 64))
-					addLog(&logs, "expected: ")
-					addSpew(&logs, investorbalance)
-					addLog(&logs, "got: ")
-					investor.Transactions = []Transaction{}
-					investor.InvestorLoans = []InvestorLoan{}
-					addSpew(&logs, investor)
-				} else {
-					addLog(&logs, "expected: "+strconv.FormatFloat(investor.AccountBalance, 'f', 6, 64))
-					addLog(&logs, "got: "+strconv.FormatFloat(investorbalance.Balance, 'f', 6, 64))
-					log.Printf("%s%s%s%s%s%s", investor.AccountName, investor.GivenName+" "+investor.Surname, strconv.FormatFloat(investor.AccountBalance, 'f', 6, 64), strconv.FormatFloat(float64(investor.BalanceInHold), 'f', 6, 64), strconv.FormatFloat(float64(investor.PrincipalInLiveLoanAccts), 'f', 6, 64), strconv.FormatFloat(float64(investor.EffectiveBalance), 'f', 6, 64))
-				}
-			}
-		}
+	// 		for _, investorHolding := range InvestorHoldings {
+	// 			var loan *InvestorLoan
+	// 			for _, investor := range Data.Investors {
+	// 				for _, loan2 := range investor.InvestorLoans {
+	// 					if investorHolding.UserId == investor.AccountName && investorHolding.LoanId == loan2.LoanAcctId {
+	// 						loan = &loan2
+	// 						break
+	// 					}
+	// 					if investorHolding.LoanId == "4956" && loan2.LoanAcctId == "L182980532" && investorHolding.UserId == investor.AccountName {
+	// 						loan = &loan2
+	// 						break
+	// 					}
+	// 				}
+	// 				if loan != nil {
+	// 					break
+	// 				}
+	// 			}
+	// 			if loan == nil {
+	// 				addLog(&logs, "Could not find a match, there are no holdings for this user:")
+	// 				addLog(&logs, investorHolding.UserId)
+	// 				addLog(&logs, investorHolding.BusinessName)
+	// 				addLog(&logs, investorHolding.LoanId)
+	// 				lenderHoldingRecNotFound++
+	// 				lenderHoldingProblemLoans[investorHolding.LoanId]++
+	// 				continue
+	// 			}
+	// 			if within(investorHolding.CapitalOutstanding, (loan.CurrentTokenValue*loan.NumofTokensHeld), 1) && within(investorHolding.Amount, (loan.OrgTokenValue*loan.NumofTokensHeld), 1) {
+	// 				addLog(&logs, "OK")
+	// 				continue
+	// 			}
+	// 			lenderHoldingRec++
+	// 			lenderHoldingProblemLoans[investorHolding.LoanId]++
+	// 			if conf.DetailedMatch {
+	// 				addLog(&logs, "Out By")
+	// 				addLog(&logs, strconv.FormatFloat(investorHolding.CapitalOutstanding-(loan.CurrentTokenValue*loan.NumofTokensHeld), 'f', 6, 64))
+	// 				addLog(&logs, strconv.FormatFloat(investorHolding.Amount-(loan.OrgTokenValue*loan.NumofTokensHeld), 'f', 6, 64))
+	// 				addLog(&logs, "expected: ")
+	// 				addSpew(&logs, investorHolding)
+	// 				addLog(&logs, "got: ")
+	// 				addSpew(&logs, loan)
+	// 			} else {
+	// 				addLog(&logs, "expected (outstanding, org): "+strconv.FormatFloat(investorHolding.CapitalOutstanding, 'f', 6, 64)+" and "+strconv.FormatFloat(investorHolding.Amount, 'f', 6, 64))
+	// 				addLog(&logs, "got (outstanding, org): "+strconv.FormatFloat((loan.CurrentTokenValue*loan.NumofTokensHeld), 'f', 6, 64)+" and "+strconv.FormatFloat((loan.OrgTokenValue*loan.NumofTokensHeld), 'f', 6, 64))
+	// 			}
+	// 		}
 
-		addLog(&logs, "investorBalanceRec: "+strconv.FormatInt(int64(investorBalanceRec), 10))
+	// 	}
 
-		addLog(&logs, "Done")
+	// 	addLog(&logs, "lenderHoldingRec: "+strconv.FormatInt(int64(lenderHoldingRec), 10))
+	// 	addLog(&logs, "lenderHoldingRecNotFound: "+strconv.FormatInt(int64(lenderHoldingRecNotFound), 10))
 
-		path := exPath + string(os.PathSeparator) + "investor-balance-rec.txt"
+	// 	addLog(&logs, "lenderHoldingProblemLoans: ")
+	// 	addSpew(&logs, lenderHoldingProblemLoans)
 
-		addSpew(&logs, recList)
+	// 	addLog(&logs, "Done")
 
-		ioutil.WriteFile(path, []byte(logs), 0666)
+	// 	path := exPath + string(os.PathSeparator) + "lender-holdings-rec.txt"
 
-		c.Header("Content-Description", "File Transfer")
-		c.Header("Content-Disposition", "attachment; filename=31-Oct-investor-balance-rec-report.txt")
-		c.Data(http.StatusOK, "text/csv", []byte(logs))
-	})
+	// 	ioutil.WriteFile(path, []byte(logs), 0666)
+
+	// 	c.Header("Content-Description", "File Transfer")
+	// 	c.Header("Content-Disposition", "attachment; filename=31-Oct-lender-holdings-rec-report.txt")
+	// 	c.Data(http.StatusOK, "text/csv", []byte(logs))
+	// })
+	// router.GET("/report/transactions-rec", func(c *gin.Context) {
+	// 	// todo if I throw all the data into an id keyed map instead of an array it will be far faster to access
+
+	// 	type CSVTransaction struct {
+	// 		UserId          string  `csv:"User ID"`
+	// 		LoanId          string  `csv:"Loan ID"`
+	// 		User            string  `csv:"User"`
+	// 		Date            string  `csv:"Date"`
+	// 		TransactionType string  `csv:"Transaction Type"`
+	// 		Dr              float64 `csv:"Dr"`
+	// 		Cr              float64 `csv:"Cr"`
+	// 		RunningBalance  float64 `csv:"Running Balance"`
+	// 	}
+
+	// 	logs := ""
+
+	// 	transactionRec := 0
+
+	// 	problemTxns := make(map[string][]CSVTransaction)
+
+	// 	// transaction rec
+	// 	{
+	// 		addLog(&logs, "Transaction Rec")
+
+	// 		transactionFile, err := os.OpenFile("loan balances 31oct.csv", os.O_RDWR|os.O_CREATE, os.ModePerm)
+	// 		if err != nil {
+	// 			panic(err)
+	// 		}
+	// 		defer transactionFile.Close()
+
+	// 		Transactions := []*CSVTransaction{}
+
+	// 		if err := gocsv.UnmarshalFile(transactionFile, &Transactions); err != nil { // Load clients from file
+	// 			panic(err)
+	// 		}
+
+	// 		doneTxns := make(map[string]bool)
+
+	// 		for _, transaction := range Transactions {
+	// 			for _, investor := range Data.Investors {
+	// 				if investor.AccountName != transaction.UserId {
+	// 					continue
+	// 				}
+	// 				for index, investorTransaction := range investor.Transactions {
+	// 					if transaction.LoanId == investorTransaction.PartitionKey && !doneTxns[investorTransaction.TxnId] {
+
+	// 						amountMatch := within(investorTransaction.TxnAmt, -transaction.Dr, 1) || within(investorTransaction.TxnAmt, transaction.Cr, 1)
+	// 						dateMatch := withinWeek(&logs, investorTransaction.TxnValueDate, transaction.Date)
+
+	// 						match := amountMatch && dateMatch
+	// 						if match {
+	// 							doneTxns[investorTransaction.TxnId] = true
+	// 							if conf.DetailedMatch {
+	// 								addLog(&logs, "expected: ")
+	// 								addSpew(&logs, transaction)
+	// 								addLog(&logs, "got: ")
+	// 								addSpew(&logs, investorTransaction)
+	// 							} else {
+	// 								addLog(&logs, "expected: "+strconv.FormatFloat(float64(transaction.Cr), 'f', 6, 64)+" or "+strconv.FormatFloat(float64(transaction.Dr), 'f', 6, 64))
+	// 								addLog(&logs, "got: "+strconv.FormatFloat(investorTransaction.TxnAmt, 'f', 6, 64))
+	// 								log.Printf("Loan: %s, User: %s", transaction.LoanId, transaction.UserId)
+	// 							}
+	// 							break
+	// 						}
+	// 					}
+	// 					if index == (len(investor.Transactions) - 1) {
+	// 						transactionRec++
+	// 						addLog(&logs, "Couldnt find:")
+	// 						addSpew(&logs, transaction)
+	// 						problemTxns[transaction.UserId] = append(problemTxns[transaction.UserId], *transaction)
+	// 					}
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+
+	// 	addLog(&logs, "transactionRec: "+strconv.FormatInt(int64(transactionRec), 10))
+
+	// 	addLog(&logs, "problem Txns by user:")
+	// 	addSpew(&logs, problemTxns)
+
+	// 	addLog(&logs, "Done")
+
+	// 	path := exPath + string(os.PathSeparator) + "transactions-rec.txt"
+
+	// 	ioutil.WriteFile(path, []byte(logs), 0666)
+
+	// 	c.Header("Content-Description", "File Transfer")
+	// 	c.Header("Content-Disposition", "attachment; filename=31-Oct-transactions-rec-report.txt")
+	// 	c.Data(http.StatusOK, "text/csv", []byte(logs))
+	// })
+	// router.GET("/report/investor-balance-rec", func(c *gin.Context) {
+	// 	// todo if I throw all the data into an id keyed map instead of an array it will be far faster to access
+
+	// 	type RecItem struct {
+	// 		InvestorID            string
+	// 		InvestorName          string
+	// 		AdjustmentTransaction float64
+	// 		ExpectedTotal         float64
+	// 	}
+	// 	logs := ""
+
+	// 	investorBalanceRec := 0
+	// 	recList := []RecItem{}
+
+	// 	// Investor balance rec
+	// 	{
+
+	// 		addLog(&logs, "Investor Balance Rec")
+	// 		type CSVInvestorBalance struct {
+	// 			Id              string  `csv:"ID"`
+	// 			User            string  `csv:"User"`
+	// 			Email           string  `csv:"Email"`
+	// 			Balance         float64 `csv:"Balance"`
+	// 			Funds           float64 `csv:"Funds (Committed)"`
+	// 			InvestmentsLive float64 `csv:"Investments (live)"`
+	// 			InvestmentsAllT float64 `csv:"Investments (all time)"`
+	// 		}
+
+	// 		investorBalanceFile, err := os.OpenFile("user bals cob 31oct18.csv", os.O_RDWR|os.O_CREATE, os.ModePerm)
+	// 		if err != nil {
+	// 			panic(err)
+	// 		}
+	// 		defer investorBalanceFile.Close()
+
+	// 		investorBalance := []*CSVInvestorBalance{}
+
+	// 		if err := gocsv.UnmarshalFile(investorBalanceFile, &investorBalance); err != nil { // Load clients from file
+	// 			panic(err)
+	// 		}
+
+	// 		for _, investorbalance := range investorBalance {
+	// 			var investor *Investor
+	// 			for _, investor2 := range Data.Investors {
+	// 				if investorbalance.Id == investor2.AccountName {
+	// 					investor = &investor2
+	// 					break
+	// 				}
+	// 			}
+	// 			if investor == nil {
+	// 				investorBalanceRec++
+	// 				addLog(&logs, "No match found for: "+investorbalance.Id)
+	// 				continue
+	// 			}
+	// 			if within(investorbalance.Balance+investorbalance.Funds, investor.AccountBalance, 1) {
+	// 				addLog(&logs, "OK")
+	// 				continue
+	// 			}
+	// 			investorBalanceRec++
+	// 			recList = append(recList, RecItem{InvestorID: investorbalance.Id, InvestorName: investorbalance.User, AdjustmentTransaction: investorbalance.Balance + investorbalance.Funds - investor.AccountBalance, ExpectedTotal: investorbalance.Balance + investorbalance.Funds})
+	// 			if conf.DetailedMatch {
+	// 				addLog(&logs, "Out By")
+	// 				addLog(&logs, strconv.FormatFloat(investorbalance.Balance+investorbalance.Funds-investor.AccountBalance, 'f', 6, 64))
+	// 				addLog(&logs, "expected: ")
+	// 				addSpew(&logs, investorbalance)
+	// 				addLog(&logs, "got: ")
+	// 				investor.Transactions = []Transaction{}
+	// 				investor.InvestorLoans = []InvestorLoan{}
+	// 				addSpew(&logs, investor)
+	// 			} else {
+	// 				addLog(&logs, "expected: "+strconv.FormatFloat(investor.AccountBalance, 'f', 6, 64))
+	// 				addLog(&logs, "got: "+strconv.FormatFloat(investorbalance.Balance, 'f', 6, 64))
+	// 				log.Printf("%s%s%s%s%s%s", investor.AccountName, investor.GivenName+" "+investor.Surname, strconv.FormatFloat(investor.AccountBalance, 'f', 6, 64), strconv.FormatFloat(float64(investor.BalanceInHold), 'f', 6, 64), strconv.FormatFloat(float64(investor.PrincipalInLiveLoanAccts), 'f', 6, 64), strconv.FormatFloat(float64(investor.EffectiveBalance), 'f', 6, 64))
+	// 			}
+	// 		}
+	// 	}
+
+	// 	addLog(&logs, "investorBalanceRec: "+strconv.FormatInt(int64(investorBalanceRec), 10))
+
+	// 	addLog(&logs, "Done")
+
+	// 	path := exPath + string(os.PathSeparator) + "investor-balance-rec.txt"
+
+	// 	addSpew(&logs, recList)
+
+	// 	ioutil.WriteFile(path, []byte(logs), 0666)
+
+	// 	c.Header("Content-Description", "File Transfer")
+	// 	c.Header("Content-Disposition", "attachment; filename=31-Oct-investor-balance-rec-report.txt")
+	// 	c.Data(http.StatusOK, "text/csv", []byte(logs))
+	// })
 
 	router.GET("/refresh", func(c *gin.Context) {
 		go Data.Refresh()
@@ -998,19 +1111,19 @@ func main() {
 		})
 	})
 
-	router.GET("/metrics/totals", func(c *gin.Context) {
-		type Totals struct {
-			investorCount    int
-			loanCount        int
-			loanOrgBalance   int
-			loanCurrBalance  int
-			investorInterest int
-			investorBalance  int
-		}
-		c.JSON(200, gin.H{
-			"message": "success",
-		})
-	})
+	// router.GET("/metrics/totals", func(c *gin.Context) {
+	// 	type Totals struct {
+	// 		investorCount    int
+	// 		loanCount        int
+	// 		loanOrgBalance   int
+	// 		loanCurrBalance  int
+	// 		investorInterest int
+	// 		investorBalance  int
+	// 	}
+	// 	c.JSON(200, gin.H{
+	// 		"message": "success",
+	// 	})
+	// })
 
 	router.NoRoute(func(c *gin.Context) {
 		c.JSON(404, gin.H{
