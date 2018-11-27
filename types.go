@@ -150,7 +150,7 @@ type Config struct {
 	Username             string
 	Pass                 string
 	Basic                string
-	SENDGRID_API_KEY     string
+	MailGunAPIKey        string
 	Interval             int64
 	SimultaneousRequests int64
 	DetailedMatch        bool

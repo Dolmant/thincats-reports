@@ -15,9 +15,8 @@ import (
 	"sync"
 	"time"
 
+	mailgun "github.com/mailgun/mailgun-go"
 	"github.com/robfig/cron"
-	sendgrid "github.com/sendgrid/sendgrid-go"
-	"github.com/sendgrid/sendgrid-go/helpers/mail"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/contrib/gzip"
@@ -319,6 +318,12 @@ func main() {
 		Data.Config.Email:    Data.Config.Password,
 	}))
 
+	authorized.GET("/loans", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "success",
+		})
+	})
+
 	authorized.GET("/report/capital-outstanding", func(c *gin.Context) {
 		c.Header("Content-Description", "File Transfer")
 		c.Header("Content-Disposition", "attachment; filename=capital-outstanding-report.csv")
@@ -382,34 +387,25 @@ func main() {
 
 	//todo check sendgrid worked
 
-	// Data.BMutex.Lock()
-	// Data.IMutex.Lock()
-	// from := mail.NewEmail("Dylan Simmer", "dsimmer.js@gmail.com")
-	// subject := "Daily Reports"
-	// to := mail.NewEmail("ThinCats Management", "dsimmer.js@gmail.com") //todo change to management at thincats
-	// plainTextContent := "ThinCats automated daily reports"
-	// htmlContent := "<strong>ThinCats automated daily reports</strong>"
-	// message := mail.NewSingleEmail(from, subject, to, plainTextContent, htmlContent)
-	// lsA := mail.NewAttachment()
-	// lsA.SetContent(base64.StdEncoding.EncodeToString([]byte(LenderSummary(Data))))
-	// lsA.SetType("text/csv")
-	// lsA.SetFilename("Lender Summary " + time.Now().Format("2006-01-02") + ".pdf")
-	// lsA.SetDisposition("attachment")
-	// lsA.SetContentID("Lener Summary")
-	// message.AddAttachment(lsA)
-	// add the other attachments here
+	Data.BMutex.Lock()
+	Data.IMutex.Lock()
+	mg := mailgun.NewMailgun("sandbox45eedd821fca4dcbad43710e9a497c8a.mailgun.org", conf.MailGunAPIKey)
 
-	// client := sendgrid.NewSendClient(conf.SENDGRID_API_KEY)
-	// response, err := client.Send(message)
-	// if err != nil {
-	// 	log.Println(err)
-	// } else {
-	// 	fmt.Println(response.StatusCode)
-	// 	fmt.Println(response.Body)
-	// 	fmt.Println(response.Headers)
-	// }
-	// Data.BMutex.Unlock()
-	// Data.IMutex.Unlock()
+	sender := "dsimmer.js@gmail.com"
+	subject := "Daily Reports"
+	body := "ThinCats automated daily reports"
+	recipient := "dsimmer.js@gmail.com"
+
+	message := mg.NewMessage(sender, subject, body, recipient)
+	message.AddBufferAttachment("lenderSummary.csv", []byte(LenderSummary(Data)))
+	resp, id, err := mg.Send(message)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(resp)
+	fmt.Println(id)
+	Data.BMutex.Unlock()
+	Data.IMutex.Unlock()
 
 	//start cron
 	c := cron.New()
@@ -420,30 +416,22 @@ func main() {
 		defer Data.BMutex.Unlock()
 		Data.IMutex.Lock()
 		defer Data.IMutex.Unlock()
-		from := mail.NewEmail("Dylan Simmer", "dsimmer.js@gmail.com")
-		subject := "Daily Reports"
-		to := mail.NewEmail("ThinCats Management", "dsimmer.js@gmail.com") //todo change to management at thincats
-		plainTextContent := "ThinCats automated daily reports"
-		htmlContent := "<strong>ThinCats automated daily reports</strong>"
-		message := mail.NewSingleEmail(from, subject, to, plainTextContent, htmlContent)
-		lsA := mail.NewAttachment()
-		lsA.SetContent(LenderSummary(Data))
-		lsA.SetType("text/csv")
-		lsA.SetFilename("Lender Summary " + time.Now().Format("2006-01-02") + ".pdf")
-		lsA.SetDisposition("attachment")
-		lsA.SetContentID("Lender Summary")
-		message.AddAttachment(lsA)
-		// add the other attachments here
+		mg := mailgun.NewMailgun("sandbox45eedd821fca4dcbad43710e9a497c8a.mailgun.org", conf.MailGunAPIKey)
 
-		client := sendgrid.NewSendClient(conf.SENDGRID_API_KEY)
-		response, err := client.Send(message)
+		sender := "dsimmer.js@gmail.com"
+		subject := "Daily Reports"
+		body := "ThinCats automated daily reports"
+		recipient := "dsimmer.js@gmail.com"
+
+		message := mg.NewMessage(sender, subject, body, recipient)
+		message.AddBufferAttachment("lenderSummary.csv", []byte(LenderSummary(Data)))
+		resp, id, err := mg.Send(message)
 		if err != nil {
-			log.Println(err)
-		} else {
-			fmt.Println(response.StatusCode)
-			fmt.Println(response.Body)
-			fmt.Println(response.Headers)
+			panic(err)
 		}
+		fmt.Println(resp)
+		fmt.Println(id)
+		// add the other attachments here
 	})
 	c.Start()
 	router.Run("0.0.0.0:8079")
