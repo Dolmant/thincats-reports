@@ -8,7 +8,7 @@ import (
 )
 
 // Bid Listing gets the morst recent bid listing for each loan
-func BidListing(data Data) string {
+func MostRecentBidListing(data Data) string {
 	csvTitles := "ID,Name,"
 	csvBody := ""
 

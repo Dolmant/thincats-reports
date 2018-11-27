@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -29,7 +30,10 @@ func (data *Data) LoginInvestor() {
 	type Login struct {
 		AccessToken string `json:"access_token"`
 	}
-	client := &http.Client{}
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
 	form := url.Values{}
 	form.Add("grant_type", "password")
 	form.Add("username", data.Config.Username)
@@ -71,7 +75,10 @@ func (data *Data) LoginLender() {
 }
 
 func (data *Data) RefreshInvestors() {
-	client := &http.Client{}
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
 	req, _ := http.NewRequest("GET", "https://investorapi.thincats.com.au//accounts/accounts", nil)
 	req.Header.Set("Authorization", "Bearer "+data.InvestorToken)
 	resp, err := client.Do(req)
@@ -100,7 +107,10 @@ func (data *Data) RefreshInvestorBalances() {
 
 		go func(accountName string, toUpdate *Investor) {
 			defer wg.Done()
-			client := &http.Client{}
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+			client := &http.Client{Transport: tr}
 			req, _ := http.NewRequest("GET", "https://investorapi.thincats.com.au/loans/loan/exchange/investor/balance/"+accountName, nil)
 			req.Header.Set("Authorization", "Bearer "+data.InvestorToken)
 			resp, err := client.Do(req)
@@ -117,7 +127,10 @@ func (data *Data) RefreshInvestorBalances() {
 		data.Semaphore <- 1
 		go func(accountName string, toUpdate *Investor) {
 			defer wg.Done()
-			client := &http.Client{}
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+			client := &http.Client{Transport: tr}
 			req, _ := http.NewRequest("GET", "https://investorapi.thincats.com.au//loans/loan/exchange/"+accountName+"/txn/1/5000", nil)
 			req.Header.Set("Authorization", "Bearer "+data.InvestorToken)
 			resp, err := client.Do(req)
@@ -134,7 +147,10 @@ func (data *Data) RefreshInvestorBalances() {
 		data.Semaphore <- 1
 		go func(accountName string, toUpdate *Investor) {
 			defer wg.Done()
-			client := &http.Client{}
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+			client := &http.Client{Transport: tr}
 			req, _ := http.NewRequest("GET", "https://investorapi.thincats.com.au//loans/loan/blk/invportfolio/"+accountName+"/1/5000", nil)
 			req.Header.Set("Authorization", "Bearer "+data.InvestorToken)
 			resp, err := client.Do(req)
@@ -167,9 +183,10 @@ func (data *Data) RefreshLoanBalances() {
 		wg.Add(4)
 		go func(accountName string, toUpdate *Loan) {
 			defer wg.Done()
-			client := &http.Client{
-				Jar: data.CookieJar,
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			}
+			client := &http.Client{Transport: tr, Jar: data.CookieJar}
 			req, _ := http.NewRequest("GET", "https://borrower.thincats.com.au/api/loans/"+accountName+"/exchange/current-status", nil)
 			resp, err := client.Do(req)
 			<-data.Semaphore
@@ -189,9 +206,10 @@ func (data *Data) RefreshLoanBalances() {
 		data.Semaphore <- 1
 		go func(accountName string, toUpdate *Loan) {
 			defer wg.Done()
-			client := &http.Client{
-				Jar: data.CookieJar,
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			}
+			client := &http.Client{Transport: tr, Jar: data.CookieJar}
 			req, _ := http.NewRequest("GET", "https://borrower.thincats.com.au/api/loans/"+accountName+"/exchange", nil)
 			resp, err := client.Do(req)
 			<-data.Semaphore
@@ -211,9 +229,10 @@ func (data *Data) RefreshLoanBalances() {
 		data.Semaphore <- 1
 		go func(accountName string, toUpdate *BalanceTransactions) {
 			defer wg.Done()
-			client := &http.Client{
-				Jar: data.CookieJar,
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			}
+			client := &http.Client{Transport: tr, Jar: data.CookieJar}
 			req, _ := http.NewRequest("GET", "https://borrower.thincats.com.au/api/loans/"+accountName+"/exchange/balance-transactions", nil)
 			resp, err := client.Do(req)
 			<-data.Semaphore
@@ -229,9 +248,10 @@ func (data *Data) RefreshLoanBalances() {
 		data.Semaphore <- 1
 		go func(accountName string, toUpdate *[]Repayment) {
 			defer wg.Done()
-			client := &http.Client{
-				Jar: data.CookieJar,
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			}
+			client := &http.Client{Transport: tr, Jar: data.CookieJar}
 			req, _ := http.NewRequest("GET", "https://borrower.thincats.com.au/api/loans/"+accountName+"/exchange/dues", nil)
 			resp, err := client.Do(req)
 			<-data.Semaphore
@@ -249,9 +269,10 @@ func (data *Data) RefreshLoanBalances() {
 }
 
 func (data *Data) RefreshLoans() {
-	client := &http.Client{
-		Jar: data.CookieJar,
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
+	client := &http.Client{Transport: tr, Jar: data.CookieJar}
 	req, _ := http.NewRequest("GET", "https://borrower.thincats.com.au/api/loans/loan-managements", nil)
 	resp, err := client.Do(req)
 	if err != nil {
@@ -363,7 +384,7 @@ func main() {
 	authorized.GET("/report/most-recent-bid-listing", func(c *gin.Context) {
 		c.Header("Content-Description", "File Transfer")
 		c.Header("Content-Disposition", "attachment; filename=MostRecentBidListing-"+time.Now().Format("YYYY-MM-DD")+".csv")
-		c.Data(http.StatusOK, "text/csv", []byte(BidListing(Data)))
+		c.Data(http.StatusOK, "text/csv", []byte(MostRecentBidListing(Data)))
 	})
 
 	authorized.GET("/report/loan-loss", func(c *gin.Context) {
@@ -385,28 +406,6 @@ func main() {
 		})
 	})
 
-	//todo check sendgrid worked
-
-	Data.BMutex.Lock()
-	Data.IMutex.Lock()
-	mg := mailgun.NewMailgun("sandbox45eedd821fca4dcbad43710e9a497c8a.mailgun.org", conf.MailGunAPIKey)
-
-	sender := "dsimmer.js@gmail.com"
-	subject := "Daily Reports"
-	body := "ThinCats automated daily reports"
-	recipient := "dsimmer.js@gmail.com"
-
-	message := mg.NewMessage(sender, subject, body, recipient)
-	message.AddBufferAttachment("lenderSummary.csv", []byte(LenderSummary(Data)))
-	resp, id, err := mg.Send(message)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(resp)
-	fmt.Println(id)
-	Data.BMutex.Unlock()
-	Data.IMutex.Unlock()
-
 	//start cron
 	c := cron.New()
 	c.AddFunc("@every 1h30m", Data.Refresh)
@@ -424,14 +423,17 @@ func main() {
 		recipient := "dsimmer.js@gmail.com"
 
 		message := mg.NewMessage(sender, subject, body, recipient)
-		message.AddBufferAttachment("lenderSummary.csv", []byte(LenderSummary(Data)))
+		message.AddBufferAttachment("LenderSummary.csv", []byte(LenderSummary(Data)))
+		message.AddBufferAttachment("LoanLoss.csv", []byte(LoanLoss(Data)))
+		message.AddBufferAttachment("MostRecentBidListing.csv", []byte(MostRecentBidListing(Data)))
+		message.AddBufferAttachment("InvestorBalance.csv", []byte(MembershipList(Data)))
+		message.AddBufferAttachment("CapitalOutstanding.csv", []byte(CapitalOutstanding(Data)))
 		resp, id, err := mg.Send(message)
 		if err != nil {
 			panic(err)
 		}
 		fmt.Println(resp)
 		fmt.Println(id)
-		// add the other attachments here
 	})
 	c.Start()
 	router.Run("0.0.0.0:8079")
