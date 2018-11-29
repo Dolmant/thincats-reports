@@ -145,10 +145,10 @@ type Investor struct {
 }
 
 type Config struct {
-	Email                string
-	Password             string
-	Username             string
-	Pass                 string
+	BorrowerEmail        string
+	BorrowerPass         string
+	InvestorUser         string
+	InvestorPass         string
 	Basic                string
 	MailGunAPIKey        string
 	Interval             int64

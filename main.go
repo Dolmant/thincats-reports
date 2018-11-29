@@ -36,8 +36,8 @@ func (data *Data) LoginInvestor() {
 	client := &http.Client{Transport: tr}
 	form := url.Values{}
 	form.Add("grant_type", "password")
-	form.Add("username", data.Config.Username)
-	form.Add("password", data.Config.Pass)
+	form.Add("username", data.Config.InvestorUser)
+	form.Add("password", data.Config.InvestorPass)
 	req, _ := http.NewRequest("POST", "https://investorapi.thincats.com.au/uaa/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Authorization", data.Config.Basic)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -60,7 +60,7 @@ func (data *Data) LoginLender() {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
-	u := Login{Email: data.Config.Email, Password: data.Config.Password}
+	u := Login{Email: data.Config.BorrowerEmail, Password: data.Config.BorrowerPass}
 	b := new(bytes.Buffer)
 	json.NewEncoder(b).Encode(u)
 	client := &http.Client{
@@ -334,15 +334,17 @@ func main() {
 	})
 
 	authorized := router.Group("/", gin.BasicAuth(gin.Accounts{
-		"Authorization":      Data.Config.Basic,
-		Data.Config.Username: Data.Config.Pass,
-		Data.Config.Email:    Data.Config.Password,
+		"Authorization":           Data.Config.Basic,
+		Data.Config.InvestorUser:  Data.Config.InvestorPass,
+		Data.Config.BorrowerEmail: Data.Config.BorrowerPass,
 	}))
 
+	authorized.GET("/investors", func(c *gin.Context) {
+		c.JSON(http.StatusOK, Data.Investors)
+	})
+
 	authorized.GET("/loans", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "success",
-		})
+		c.JSON(http.StatusOK, Data.Loans)
 	})
 
 	authorized.GET("/report/capital-outstanding", func(c *gin.Context) {
@@ -395,7 +397,7 @@ func main() {
 
 	authorized.GET("/refresh", func(c *gin.Context) {
 		go Data.Refresh()
-		c.JSON(200, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"message": "success",
 		})
 	})
