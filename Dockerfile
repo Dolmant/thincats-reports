@@ -9,7 +9,7 @@ FROM golang AS build-env
 
 COPY . ./src/github.com/dolmant/thincats-reports
 RUN cd ./src/github.com/dolmant/thincats-reports && go get
-RUN CGO_ENABLED=0 go build -o ./src/github.com/dolmant/thincats-reports/thincats-reports ./src/github.com/dolmant/thincats-reports/main.go
+RUN CGO_ENABLED=0 go build -o ./src/github.com/dolmant/thincats-reports/thincats-reports ./src/github.com/dolmant/thincats-reports/
 
 FROM alpine
 ADD ca-certificates.crt /etc/ssl/certs/
