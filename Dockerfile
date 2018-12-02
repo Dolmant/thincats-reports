@@ -4,7 +4,7 @@
 # docker build -t thincats-reports .
 # docker tag thincats-reports:latest asia.gcr.io/firm-champion-204312/thincats-reports:latest
 # docker push asia.gcr.io/firm-champion-204312/thincats-reports:latest
-# gcloud compute instances create-with-container reports  --container-image asia.gcr.io/firm-champion-204312/thincats-reports:latest
+# gcloud compute instances create-with-container reports --machine-type f1-micro --zone australia-southeast1-a --container-image asia.gcr.io/firm-champion-204312/thincats-reports:latest
 FROM golang AS build-env
 
 COPY . ./src/github.com/dolmant/thincats-reports
