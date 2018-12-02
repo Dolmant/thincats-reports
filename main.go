@@ -20,6 +20,7 @@ import (
 	"github.com/robfig/cron"
 
 	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/autotls"
 	"github.com/gin-gonic/contrib/gzip"
 	"github.com/gin-gonic/gin"
 
@@ -43,14 +44,16 @@ func (data *Data) LoginInvestor() {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
+		return
 	}
 
 	var result Login
 
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
+		return
 	}
 	data.InvestorToken = result.AccessToken
 }
@@ -70,7 +73,8 @@ func (data *Data) LoginLender() {
 	req.Header.Set("Content-Type", "application/json")
 	_, err := client.Do(req)
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
+		return
 	}
 }
 
@@ -83,12 +87,14 @@ func (data *Data) RefreshInvestors() {
 	req.Header.Set("Authorization", "Bearer "+data.InvestorToken)
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
+		return
 	}
 
 	err = json.NewDecoder(resp.Body).Decode(&data.Investors)
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
+		return
 	}
 	data.RefreshInvestorBalances()
 }
@@ -116,12 +122,14 @@ func (data *Data) RefreshInvestorBalances() {
 			resp, err := client.Do(req)
 			<-data.Semaphore
 			if err != nil {
-				log.Fatalln(err)
+				log.Println(err)
+				return
 			}
 
 			err = json.NewDecoder(resp.Body).Decode(toUpdate)
 			if err != nil {
-				log.Fatalln(err)
+				log.Println(err)
+				return
 			}
 		}(investor.AccountName, &data.Investors[i])
 		data.Semaphore <- 1
@@ -136,12 +144,14 @@ func (data *Data) RefreshInvestorBalances() {
 			resp, err := client.Do(req)
 			<-data.Semaphore
 			if err != nil {
-				log.Fatalln(err)
+				log.Println(err)
+				return
 			}
 
 			err = json.NewDecoder(resp.Body).Decode(toUpdate)
 			if err != nil {
-				log.Fatalln(err)
+				log.Println(err)
+				return
 			}
 		}(investor.AccountName, &data.Investors[i])
 		data.Semaphore <- 1
@@ -156,12 +166,14 @@ func (data *Data) RefreshInvestorBalances() {
 			resp, err := client.Do(req)
 			<-data.Semaphore
 			if err != nil {
-				log.Fatalln(err)
+				log.Println(err)
+				return
 			}
 
 			err = json.NewDecoder(resp.Body).Decode(toUpdate)
 			if err != nil {
-				log.Fatalln(err)
+				log.Println(err)
+				return
 			}
 		}(investor.AccountName, &data.Investors[i])
 	}
@@ -191,16 +203,14 @@ func (data *Data) RefreshLoanBalances() {
 			resp, err := client.Do(req)
 			<-data.Semaphore
 			if err != nil {
-				log.Fatalln(err)
+				log.Println(err)
+				return
 			}
 
 			err = json.NewDecoder(resp.Body).Decode(toUpdate)
 			if err != nil {
-				buf := new(bytes.Buffer)
-				buf.ReadFrom(resp.Body)
-				newStr := buf.String()
-				log.Println(newStr)
-				log.Fatalln(err)
+				log.Println(err)
+				return
 			}
 		}(id, &data.Loans[i])
 		data.Semaphore <- 1
@@ -214,16 +224,14 @@ func (data *Data) RefreshLoanBalances() {
 			resp, err := client.Do(req)
 			<-data.Semaphore
 			if err != nil {
-				log.Fatalln(err)
+				log.Println(err)
+				return
 			}
 
 			err = json.NewDecoder(resp.Body).Decode(toUpdate)
 			if err != nil {
-				buf := new(bytes.Buffer)
-				buf.ReadFrom(resp.Body)
-				newStr := buf.String()
-				log.Println(newStr)
-				log.Fatalln(err)
+				log.Println(err)
+				return
 			}
 		}(id, &data.Loans[i])
 		data.Semaphore <- 1
@@ -237,12 +245,14 @@ func (data *Data) RefreshLoanBalances() {
 			resp, err := client.Do(req)
 			<-data.Semaphore
 			if err != nil {
-				log.Fatalln(err)
+				log.Println(err)
+				return
 			}
 
 			err = json.NewDecoder(resp.Body).Decode(toUpdate)
 			if err != nil {
-				log.Fatalln(err)
+				log.Println(err)
+				return
 			}
 		}(id, &data.Loans[i].BalanceTransactions)
 		data.Semaphore <- 1
@@ -256,12 +266,14 @@ func (data *Data) RefreshLoanBalances() {
 			resp, err := client.Do(req)
 			<-data.Semaphore
 			if err != nil {
-				log.Fatalln(err)
+				log.Println(err)
+				return
 			}
 
 			err = json.NewDecoder(resp.Body).Decode(toUpdate)
 			if err != nil {
-				log.Fatalln(err)
+				log.Println(err)
+				return
 			}
 		}(id, &data.Loans[i].Repayments)
 	}
@@ -276,13 +288,15 @@ func (data *Data) RefreshLoans() {
 	req, _ := http.NewRequest("GET", "https://borrower.thincats.com.au/api/loans/loan-managements", nil)
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
+		return
 	}
 
 	err = json.NewDecoder(resp.Body).Decode(&data.Loans)
 	data.RefreshLoanBalances()
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
+		return
 	}
 }
 
@@ -412,7 +426,6 @@ func main() {
 	c := cron.New()
 	c.AddFunc("@every 1h30m", Data.Refresh)
 	c.AddFunc("@midnight", func() {
-		// todo send email to management at thincats - via sendgrid?
 		Data.BMutex.Lock()
 		defer Data.BMutex.Unlock()
 		Data.IMutex.Lock()
@@ -432,11 +445,16 @@ func main() {
 		message.AddBufferAttachment("CapitalOutstanding.csv", []byte(CapitalOutstanding(Data)))
 		resp, id, err := mg.Send(message)
 		if err != nil {
-			panic(err)
+			log.Println(err)
+			return
 		}
 		fmt.Println(resp)
 		fmt.Println(id)
 	})
 	c.Start()
-	router.Run("0.0.0.0:8079")
+
+	go router.Run("0.0.0.0:80")
+
+	log.Fatal(autotls.Run(router, "thincats-reports-api.storm-analytiks.com"))
+
 }
