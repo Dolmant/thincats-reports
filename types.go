@@ -144,6 +144,19 @@ type Investor struct {
 	Transactions               []Transaction  `json:"transactionLegPageList"`   // todo pagination for these transactions
 }
 
+type Monitor struct {
+	Alloc,
+	TotalAlloc,
+	Sys,
+	Mallocs,
+	Frees,
+	LiveObjects,
+	PauseTotalNs uint64
+
+	NumGC        uint32
+	NumGoroutine int
+}
+
 type Config struct {
 	BorrowerEmail        string
 	BorrowerPass         string

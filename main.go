@@ -50,6 +50,7 @@ func (data *Data) LoginInvestor() {
 		log.Println(err)
 		return
 	}
+	defer resp.Body.Close()
 
 	var result Login
 
@@ -74,11 +75,12 @@ func (data *Data) LoginLender() {
 	}
 	req, _ := http.NewRequest("POST", "https://borrower.thincats.com.au/api/user", b)
 	req.Header.Set("Content-Type", "application/json")
-	_, err := client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Println(err)
 		return
 	}
+	defer resp.Body.Close()
 }
 
 func (data *Data) RefreshInvestors() {
@@ -93,6 +95,7 @@ func (data *Data) RefreshInvestors() {
 		log.Println(err)
 		return
 	}
+	defer resp.Body.Close()
 
 	err = json.NewDecoder(resp.Body).Decode(&data.Investors)
 	if err != nil {
@@ -128,6 +131,7 @@ func (data *Data) RefreshInvestorBalances() {
 				log.Println(err)
 				return
 			}
+			defer resp.Body.Close()
 
 			err = json.NewDecoder(resp.Body).Decode(toUpdate)
 			if err != nil {
@@ -150,6 +154,7 @@ func (data *Data) RefreshInvestorBalances() {
 				log.Println(err)
 				return
 			}
+			defer resp.Body.Close()
 
 			err = json.NewDecoder(resp.Body).Decode(toUpdate)
 			if err != nil {
@@ -172,6 +177,7 @@ func (data *Data) RefreshInvestorBalances() {
 				log.Println(err)
 				return
 			}
+			defer resp.Body.Close()
 
 			err = json.NewDecoder(resp.Body).Decode(toUpdate)
 			if err != nil {
@@ -181,7 +187,7 @@ func (data *Data) RefreshInvestorBalances() {
 		}(investor.AccountName, &data.Investors[i])
 	}
 	wg.Wait()
-	// spew.Dump(data.Investors[2])
+	log.Println("All investors fetched")
 }
 
 func (data *Data) RefreshLoanBalances() {
@@ -189,9 +195,6 @@ func (data *Data) RefreshLoanBalances() {
 	defer data.BMutex.Unlock()
 	var wg sync.WaitGroup
 	for i, loan := range data.Loans {
-		// if i > 2 {
-		// 	continue
-		// }
 		fmt.Printf("%d of %d\n", i, len(data.Loans))
 		id := strconv.FormatInt(int64(loan.Id), 10)
 		data.Semaphore <- 1
@@ -209,6 +212,7 @@ func (data *Data) RefreshLoanBalances() {
 				log.Println(err)
 				return
 			}
+			defer resp.Body.Close()
 
 			err = json.NewDecoder(resp.Body).Decode(toUpdate)
 			if err != nil {
@@ -230,6 +234,7 @@ func (data *Data) RefreshLoanBalances() {
 				log.Println(err)
 				return
 			}
+			defer resp.Body.Close()
 
 			err = json.NewDecoder(resp.Body).Decode(toUpdate)
 			if err != nil {
@@ -251,6 +256,7 @@ func (data *Data) RefreshLoanBalances() {
 				log.Println(err)
 				return
 			}
+			defer resp.Body.Close()
 
 			err = json.NewDecoder(resp.Body).Decode(toUpdate)
 			if err != nil {
@@ -272,6 +278,7 @@ func (data *Data) RefreshLoanBalances() {
 				log.Println(err)
 				return
 			}
+			defer resp.Body.Close()
 
 			err = json.NewDecoder(resp.Body).Decode(toUpdate)
 			if err != nil {
@@ -281,6 +288,7 @@ func (data *Data) RefreshLoanBalances() {
 		}(id, &data.Loans[i].Repayments)
 	}
 	wg.Wait()
+	log.Println("All loan balances fetched")
 }
 
 func (data *Data) RefreshLoans() {
@@ -294,6 +302,7 @@ func (data *Data) RefreshLoans() {
 		log.Println(err)
 		return
 	}
+	defer resp.Body.Close()
 
 	err = json.NewDecoder(resp.Body).Decode(&data.Loans)
 	data.RefreshLoanBalances()
@@ -387,9 +396,33 @@ func main() {
 			f.Close()
 		}
 
-		c.JSON(http.StatusOK, gin.H{
-			"meesage": "OK",
-		})
+		var rtm runtime.MemStats
+		var m Monitor
+		// Read full mem stats
+		runtime.ReadMemStats(&rtm)
+
+		// Number of goroutines
+		m.NumGoroutine = runtime.NumGoroutine()
+
+		// Misc memory stats
+		m.Alloc = rtm.Alloc
+		m.TotalAlloc = rtm.TotalAlloc
+		m.Sys = rtm.Sys
+		m.Mallocs = rtm.Mallocs
+		m.Frees = rtm.Frees
+
+		// Live objects = Mallocs - Frees
+		m.LiveObjects = m.Mallocs - m.Frees
+
+		// GC Stats
+		m.PauseTotalNs = rtm.PauseTotalNs
+		m.NumGC = rtm.NumGC
+
+		// Just encode to json and print
+		b, _ := json.Marshal(m)
+		fmt.Println(string(b))
+
+		c.JSON(http.StatusOK, m)
 	})
 
 	authorized.GET("/investors", func(c *gin.Context) {
