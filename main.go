@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -11,6 +12,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -307,7 +310,21 @@ func (data *Data) Refresh() {
 	go data.RefreshLoans()
 }
 
+var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
+var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
+
 func main() {
+	flag.Parse()
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal("could not create CPU profile: ", err)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal("could not start CPU profile: ", err)
+		}
+	}
+
 	ex, _ := os.Executable()
 	exPath := filepath.Dir(ex)
 
@@ -353,12 +370,35 @@ func main() {
 		Data.Config.BorrowerEmail: Data.Config.BorrowerPass,
 	}))
 
+	authorized.GET("/dumpprof", func(c *gin.Context) {
+		if *cpuprofile != "" {
+			pprof.StopCPUProfile()
+		}
+
+		if *memprofile != "" {
+			f, err := os.Create(*memprofile)
+			if err != nil {
+				log.Fatal("could not create memory profile: ", err)
+			}
+			runtime.GC() // get up-to-date statistics
+			if err := pprof.WriteHeapProfile(f); err != nil {
+				log.Fatal("could not write memory profile: ", err)
+			}
+			f.Close()
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"meesage": "OK",
+		})
+	})
+
 	authorized.GET("/investors", func(c *gin.Context) {
 		investorClone := Data.Investors
 		for i := range investorClone {
 			investorClone[i].Transactions = []Transaction{}
 			investorClone[i].InvestorLoans = []InvestorLoan{}
 		}
+
 		c.JSON(http.StatusOK, Data.Investors)
 	})
 
