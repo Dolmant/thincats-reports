@@ -354,6 +354,11 @@ func main() {
 	}))
 
 	authorized.GET("/investors", func(c *gin.Context) {
+		investorClone := Data.Investors
+		for i := range investorClone {
+			investorClone[i].Transactions = []Transaction{}
+			investorClone[i].InvestorLoans = []InvestorLoan{}
+		}
 		c.JSON(http.StatusOK, Data.Investors)
 	})
 
