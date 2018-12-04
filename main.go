@@ -500,8 +500,9 @@ func main() {
 		})
 	})
 
-	//start cron
-	c := cron.New()
+	//start cron with UTC+10
+	loc := time.FixedZone("UTC+10", 10*60*60)
+	c := cron.NewWithLocation(loc)
 	c.AddFunc("@every 1h30m", Data.Refresh)
 	c.AddFunc("@midnight", func() {
 		Data.BMutex.Lock()
