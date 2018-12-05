@@ -426,7 +426,8 @@ func main() {
 	})
 
 	authorized.GET("/investors", func(c *gin.Context) {
-		investorClone := Data.Investors
+		// Otherwise we wipe out our transactions, go slices are by reference
+		investorClone := append([]Investor(nil), Data.Investors...)
 		for i := range investorClone {
 			investorClone[i].Transactions = []Transaction{}
 			investorClone[i].InvestorLoans = []InvestorLoan{}
