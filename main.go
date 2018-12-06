@@ -535,6 +535,5 @@ func main() {
 
 	go router.Run("0.0.0.0:80")
 
-	log.Fatal(autotls.Run(router, "thincats-reports-api.storm-analytiks.com"))
-
+	log.Fatal(autotls.Run(router, "thincats-reports-api.storm-analytiks.com", "reports-api.thincats.com.au"))
 }
