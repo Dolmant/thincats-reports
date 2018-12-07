@@ -1,5 +1,6 @@
 store updates in a separate struct and swap structs over after an update to avoid partial updates
-
+DO NOT GET CERTS IF RUNNING LOCALLY
+turn on release flag in golang build
 loan loss stats year on year
 add remaining attachments to report email
 
