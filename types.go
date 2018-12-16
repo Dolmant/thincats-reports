@@ -129,7 +129,9 @@ type Investor struct {
 	Email            string  `json:"email"`
 	GivenName        string  `json:"givenName"`
 	Surname          string  `json:"surname"`
-	Type             string  `json:"type"`
+	Enabled          bool    `json:"enabled"`
+	PhoneNo          string  `json:"phoneNo"`
+	Type             string  `json:"investorType"`
 	AccountBalance   float64 `json:"accountBalance"`
 	BalanceInHold    float64 `json:"balanceInHold"`
 	EffectiveBalance float64 `json:"effectiveBalance"`

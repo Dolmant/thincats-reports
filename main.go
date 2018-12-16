@@ -88,7 +88,7 @@ func (data *Data) RefreshInvestors() {
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	client := &http.Client{Transport: tr}
-	req, _ := http.NewRequest("GET", "https://investorapi.thincats.com.au//accounts/accounts", nil)
+	req, _ := http.NewRequest("GET", "https://investorapi.thincats.com.au/accounts/accounts", nil)
 	req.Header.Set("Authorization", "Bearer "+data.InvestorToken)
 	resp, err := client.Do(req)
 	if err != nil {
@@ -96,7 +96,6 @@ func (data *Data) RefreshInvestors() {
 		return
 	}
 	defer resp.Body.Close()
-
 	err = json.NewDecoder(resp.Body).Decode(&data.Investors)
 	if err != nil {
 		log.Println(err)
@@ -146,7 +145,7 @@ func (data *Data) RefreshInvestorBalances() {
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			}
 			client := &http.Client{Transport: tr}
-			req, _ := http.NewRequest("GET", "https://investorapi.thincats.com.au//loans/loan/exchange/"+accountName+"/txn/1/5000", nil)
+			req, _ := http.NewRequest("GET", "https://investorapi.thincats.com.au/loans/loan/exchange/"+accountName+"/txn/1/5000", nil)
 			req.Header.Set("Authorization", "Bearer "+data.InvestorToken)
 			resp, err := client.Do(req)
 			<-data.Semaphore
@@ -169,7 +168,7 @@ func (data *Data) RefreshInvestorBalances() {
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			}
 			client := &http.Client{Transport: tr}
-			req, _ := http.NewRequest("GET", "https://investorapi.thincats.com.au//loans/loan/blk/invportfolio/"+accountName+"/1/5000", nil)
+			req, _ := http.NewRequest("GET", "https://investorapi.thincats.com.au/loans/loan/blk/invportfolio/"+accountName+"/1/5000", nil)
 			req.Header.Set("Authorization", "Bearer "+data.InvestorToken)
 			resp, err := client.Do(req)
 			<-data.Semaphore
